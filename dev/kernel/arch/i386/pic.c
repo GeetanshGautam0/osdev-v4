@@ -34,44 +34,60 @@ __pic_get_irq_reg ( int ocw3 )
      * represents IRQs 8-15. PIC1 (master) is IRQs 0-7 wth 2 being the chain ( IRQ2 not avail to kernel )
      * */
 
-    outport8(PIC_MASTER + PIC_COMMAND, ocw3);
-    outport8(PIC_SLAVE + PIC_COMMAND, ocw3);
+    outb(PIC_MASTER + PIC_COMMAND, ocw3);
+    io_wait();
+    outb(PIC_SLAVE + PIC_COMMAND, ocw3);
+    io_wait();
 
-    return (inport8(PIC_SLAVE + PIC_COMMAND) << 8) | inport8(PIC_MASTER + PIC_COMMAND);
+    return (inb(PIC_SLAVE + PIC_COMMAND) << 8) | inb(PIC_MASTER + PIC_COMMAND);
 
 }
 
 enum PIC_ID { MASTER, SLAVE };
 
+static uint8_t __psc_out;
 static uint8_t
 __pic_send_command ( enum PIC_ID id, uint8_t command )
 {
 
+    __psc_out = 0;
+
     switch (id)
     {
         case MASTER:
-            return outport8(PIC_MASTER + PIC_COMMAND, command);
+            __psc_out = outb(PIC_MASTER + PIC_COMMAND, command);
+            break;
+
         case SLAVE:
-            return outport8(PIC_SLAVE  + PIC_COMMAND, command);
+            __psc_out = outb(PIC_SLAVE  + PIC_COMMAND, command);
+            break;
     }
 
-    return 0;
+    io_wait();
+    return __psc_out;
 
 }
 
+static uint8_t __psd_out;
 static uint8_t
 __pic_send_data ( enum PIC_ID id, uint8_t data )
 {
 
+    __psd_out = 0;
+
     switch (id)
     {
         case MASTER:
-            return outport8(PIC_MASTER + PIC_DATA, data);
+            __psd_out = outb(PIC_MASTER + PIC_DATA, data);
+            break;
+
         case SLAVE:
-            return outport8(PIC_SLAVE  + PIC_DATA, data);
+            __psd_out = outb(PIC_SLAVE  + PIC_DATA, data);
+            break;
     }
 
-    return 0;
+    io_wait();
+    return __psd_out;
 
 }
 
@@ -81,10 +97,10 @@ uint16_t pic_read_irr ( void ) /* Interrupt request register */ { return __pic_g
 uint16_t pic_read_isr ( void ) /* In-service register */        { return __pic_get_irq_reg(PIC_READ_ISR); }
 
 void pic_eoi_master
-( void ) /* End of interrupt */ { outport8(PIC_MASTER, PIC_CMD_ENDINTR); }
+( void ) /* End of interrupt */ { outb(PIC_MASTER, PIC_CMD_ENDINTR); }
 
 void pic_eoi_slave
-( void ) /* End of interrupt */ { outport8(PIC_SLAVE, PIC_CMD_ENDINTR); }
+( void ) /* End of interrupt */ { outb(PIC_SLAVE, PIC_CMD_ENDINTR); }
 
 void pic_disable
 ( void ) {
@@ -106,8 +122,9 @@ void IRQ_set_mask
         IRQ_line -= 8;
     }
 
-    value = inport8(port) | (1 << IRQ_line);
-    outport8(port, value);
+    value = inb(port) | (1 << IRQ_line);
+    io_wait();
+    outb(port, value);
 
 }
 
@@ -125,8 +142,9 @@ void IRQ_clear_mask
         IRQ_line -= 8;
     }
 
-    value = inport8(port) & ~(1 << IRQ_line);
-    outport8(port, value);
+    value = inb(port) & ~(1 << IRQ_line);
+    io_wait();
+    outb(port, value);
 
 }
 
@@ -135,11 +153,13 @@ void pic_initialize
 
     uint8_t map_irsq_at = 32;
     uint8_t master_mask = 0;
-    uint8_t slave_mask = 0;
+    uint8_t slave_mask  = 0;
 
+    // Init PIC1 and PIC2
     __pic_send_command(MASTER,  PIC_CMD_INIT | PIC_ICW1_ICW4);
     __pic_send_command(SLAVE,   PIC_CMD_INIT | PIC_ICW1_ICW4);
 
+    // Configure PIC1 and PIC2
     __pic_send_data(MASTER,     map_irsq_at + 0);       // Map master to 0-7
     __pic_send_data(SLAVE,      map_irsq_at + 8);       // Map slave to 8-15
     __pic_send_data(MASTER,     0x04);                  // Slave PIC at IRQ2
@@ -152,4 +172,9 @@ void pic_initialize
 }
 
 
+/*
+ * PIC mappings
+ *
+ * IRQ1     Keyboard interrupts
+ * */
 
