@@ -13,6 +13,7 @@ uint16_t    pic_read_isr    ( void );
 void        pic_eoi_slave   ( void );
 void        pic_eoi_master  ( void );
 void        pic_initialize  ( void );
+void        pic_disable     ( void );
 
 #ifdef __cplusplus
 }
