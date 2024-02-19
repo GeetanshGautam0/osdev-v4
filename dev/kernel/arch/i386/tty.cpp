@@ -5,7 +5,10 @@
 static tty_status_t output_v;
 volatile uint16_t * const VGA_MEMORY = (uint16_t *) 0xB8000;
 
-TTY::TTY(
+TTY KernelTerminal;
+
+void
+TTY::init(
     enum VGA_COLOR  fg,
     enum VGA_COLOR  bg,
     dimensions_t    bounds
@@ -26,12 +29,6 @@ TTY::TTY(
 
 }
 
-TTY::~TTY
-( void ) {
-    tty_status = TTY_STATUS_HALT;
-    return;
-}
-
 static vga_entry_t _tty_clear_empty_entry;
 
 bool
@@ -39,6 +36,14 @@ TTY::_ready
 ( void ) {
     return tty_status == TTY_STATUS_READY;
 }
+
+void
+TTY::DISABLE
+( void ) { tty_status = TTY_STATUS_HALT; }
+
+bool
+TTY::Ready
+( void ) { return _ready(); }
 
 void
 TTY::_increment_cursor

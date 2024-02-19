@@ -14,9 +14,15 @@ rwildcard=$(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(su
 CPP_SRC1 = $(call rwildcard,$(SRCDIR1),*.cpp)
 CPP_SRC2 = $(call rwildcard,$(SRCDIR2),*.cpp)
 CPP_SRC3 = $(call rwildcard,$(SRCDIR3),*.cpp)
+
 C_SRC1 = $(call rwildcard,$(SRCDIR1),*.c)
 C_SRC2 = $(call rwildcard,$(SRCDIR2),*.c)
 C_SRC3 = $(call rwildcard,$(SRCDIR3),*.c)
+
+S_SRC1 = $(call rwildcard,$(SRCDIR1),*.s)
+S_SRC2 = $(call rwildcard,$(SRCDIR2),*.s)
+S_SRC3 = $(call rwildcard,$(SRCDIR3),*.s)
+
 L_SRC1 = $(call rwildcard,$(LIBC),*.c)
 L_SRC2 = $(call rwildcard,$(LIBC),*.cpp)
 
@@ -28,8 +34,11 @@ OBJS5 = $(patsubst $(SRCDIR2)/%.cpp, $(OBJDIR)/%_cpp2.o, $(CPP_SRC2))
 OBJS6 = $(patsubst $(SRCDIR3)/%.cpp, $(OBJDIR)/%_cpp3.o, $(CPP_SRC3))
 OBJS7 = $(patsubst $(LIBC)/%.c, $(OBJDIR)/%_libc1.o, $(L_SRC1))
 OBJS8 = $(patsubst $(LIBC)/%.cpp, $(OBJDIR)/%_libc2.o, $(L_SRC2))
+OBJS9  = $(patsubst $(SRCDIR1)/%.s, $(OBJDIR)/%_s1.o, $(S_SRC1))
+OBJS10 = $(patsubst $(SRCDIR2)/%.s, $(OBJDIR)/%_s2.o, $(S_SRC2))
+OBJS11 = $(patsubst $(SRCDIR3)/%.s, $(OBJDIR)/%_s3.o, $(S_SRC3))
 
-OBJS = $(strip $(OBJS1) $(OBJS2) $(OBJS3) $(OBJS4) $(OBJS5) $(OBJS6) $(OBJS7) $(OBJS8))
+OBJS = $(strip $(OBJS1) $(OBJS2) $(OBJS3) $(OBJS4) $(OBJS5) $(OBJS6) $(OBJS7) $(OBJS8) $(OBJS9) $(OBJS10) $(OBJS11))
 CPP_SRC = $(strip $(CPP_SRC1) $(CPP_SRC2) $(CPP_SRC3) $(L_SRC2))
 C_SRC = $(strip $(C_SRC1) $(C_SRC2) $(C_SRC3) $(L_SRC1))
 
@@ -79,6 +88,21 @@ $(OBJDIR)/%_c3.o: $(SRCDIR3)/%.c
 	@mkdir -p $(@D)
 	@bash $(C_COMPILER) $^ $@
 
+$(OBJDIR)/%_s1.o: $(SRCDIR1)/%.s
+	@echo !--- Compiling "$^" ---!
+	@mkdir -p $(@D)
+	@bash $(C_COMPILER) $^ $@
+
+$(OBJDIR)/%_s2.o: $(SRCDIR2)/%.s
+	@echo !--- Compiling "$^" ---!
+	@mkdir -p $(@D)
+	@bash $(C_COMPILER) $^ $@
+
+$(OBJDIR)/%_s3.o: $(SRCDIR3)/%.s
+	@echo !--- Compiling "$^" ---!
+	@mkdir -p $(@D)
+	@bash $(C_COMPILER) $^ $@
+
 $(OBJDIR)/%_libc1.o: $(LIBC)/%.c
 	@echo !--- Compiling "$^" ---!
 	@mkdir -p $(@D)
@@ -112,4 +136,4 @@ mk_image: true
 run: true
 	bash ./run.sh
 
-all: debug clean bootloader compile link verify_mb mk_image
+all: debug clean compile link verify_mb mk_image  # bootloader does not need to be included anymore
