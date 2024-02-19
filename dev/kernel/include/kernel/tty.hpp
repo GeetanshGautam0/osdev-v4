@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef _KERNEL_TTY_HPP
 #define _KERNEL_TTY_HPP 1
 
@@ -34,8 +36,7 @@ class TTY
 public:
 
     /* Class constructor and destructor */
-    TTY     ( enum VGA_COLOR fg, enum VGA_COLOR bg, dimensions_t dimensions );
-    ~TTY    ( void );
+void init   ( enum VGA_COLOR fg, enum VGA_COLOR bg, dimensions_t dimensions );
 
     /* Public TTY functions */
     tty_status_t        ClearScreen ( void );
@@ -47,6 +48,8 @@ public:
     tty_status_t        Write       ( const char * string);
     point_t             Cursor      ( void );
     tty_status_t        Cursor      ( size_t x, size_t y );
+    bool                Ready       ( void );
+    void                DISABLE     ( void );
 
 private:
 
@@ -55,7 +58,7 @@ private:
     point_t tty_cursor;
     dimensions_t tty_dim;
     tty_wrap_mode_t tty_wrap = WRAP_H | WRAP_V; // Wrap in both X and Y directions.
-    tty_status_t tty_status = 0;
+    tty_status_t tty_status = TTY_STATUS_NOT_READY;
 
     uint16_t * tty_buffer;
 
@@ -69,5 +72,6 @@ private:
 
 };
 
-
 #endif /* _KERNEL_TTY_HPP */
+
+extern TTY KernelTerminal;
