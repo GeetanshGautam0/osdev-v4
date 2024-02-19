@@ -63,8 +63,9 @@ private:
     bool            _ready      ( void );
     tty_status_t    _limit_cur  ( void );
     tty_status_t    _clear      ( void );
-    tty_status_t    _put_char   ( vga_entry_t e, size_t x, size_t y );
+    tty_status_t    _put_char   ( vga_entry_t e, size_t x, size_t y, unsigned char c, bool mc );
     tty_status_t    _replace_col( vga_color_t c);
+    void            _increment_cursor ( size_t indices );
 
 };
 
