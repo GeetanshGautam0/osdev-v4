@@ -1,5 +1,6 @@
 #include "../../include/kernel/tty.hpp"
 #include "../../../libc/include/string.h"
+#include "../../include/kernel/kernel_pol.h"
 
 static tty_status_t output_v;
 volatile uint16_t * const VGA_MEMORY = (uint16_t *) 0xB8000;
@@ -37,6 +38,25 @@ bool
 TTY::_ready
 ( void ) {
     return tty_status == TTY_STATUS_READY;
+}
+
+void
+TTY::_increment_cursor
+(
+    size_t size
+) {
+
+    if ( tty_cursor.X + size >= tty_dim.width )
+    {
+        tty_cursor.X += (size_t)(size % tty_dim.width);
+        tty_cursor.Y += (unsigned int)(size / tty_dim.width);
+    } else
+    {
+        tty_cursor.X += size;
+    }
+
+    _limit_cur();
+
 }
 
 tty_status_t
@@ -174,7 +194,7 @@ TTY::Cursor
     if (!_ready()) return TTY_STATUS_NOT_READY;
     tty_cursor = (point_t){x, y};
 
-    return TTY_STATUS_OK;
+    return _limit_cur();
 }
 
 tty_status_t
@@ -182,11 +202,56 @@ TTY::_put_char
 (
         vga_entry_t e,
         size_t x,
-        size_t y
+        size_t y,
+        unsigned char uc,
+        bool mc
 ) {
 
+    // TODO:
+    //  Add a switch-case statement to check for:
+    //      New lines
+    //      Carriage returns        ( + add a kernel policy setting to auto CR )
+    //      Tabs                    ( + add a kernel policy setting for tab width )
+
     const size_t index = y * tty_dim.width + x;
-    tty_buffer[index] = e;
+
+    switch (uc)
+    {
+
+        case '\n': {
+            tty_cursor.Y ++;
+
+#if AUTO_CR == true
+            tty_cursor.X = 0;
+#endif
+
+            _limit_cur();
+            break;
+        }
+
+        case '\r': {
+            tty_cursor.X = 0;
+            break;
+        }
+
+        case '\t': {
+            for ( size_t i = 0; i < TAB_WIDTH; i++ )
+                _put_char(vga_entry(' ', tty_color), index + i, 0, ' ', false);
+
+            _increment_cursor(TAB_WIDTH);
+            break;
+
+        }
+
+        default: {
+            tty_buffer[index] = e;
+
+            if (mc) {
+                tty_cursor.X++;
+                _limit_cur();
+            }
+        }
+    }
 
     return TTY_STATUS_OK;
 
@@ -201,10 +266,7 @@ TTY::PutChar
     if (!_ready()) return TTY_STATUS_NOT_READY;
     tty_status = TTY_STATUS_NOT_READY;
 
-    output_v = _put_char( vga_entry(uc, tty_color), tty_cursor.X, tty_cursor.Y );
-    tty_cursor.X++;
-
-    _limit_cur();
+    output_v = _put_char( vga_entry(uc, tty_color), tty_cursor.X, tty_cursor.Y, uc, true );
 
     tty_status = TTY_STATUS_READY;
     return output_v;
@@ -226,13 +288,7 @@ TTY::PutChar
     if (!_ready()) return TTY_STATUS_NOT_READY;
     tty_status = TTY_STATUS_NOT_READY;
 
-    output_v = _put_char( vga_entry(uc, tty_color), x, y );
-
-    if (move_cur && output_v == TTY_STATUS_OK)
-    {
-        tty_cursor = (point_t){x + 1, y};
-        _limit_cur();
-    }
+    output_v = _put_char( vga_entry(uc, tty_color), x, y, uc, move_cur);
 
     tty_status = TTY_STATUS_READY;
     return output_v;
@@ -250,23 +306,44 @@ TTY::Write_sz
     if (!_ready()) return TTY_STATUS_NOT_READY;
     tty_status = TTY_STATUS_NOT_READY;
 
+    size_t index = tty_cursor.Y * tty_dim.width + tty_cursor.X;
+    output_v = TTY_STATUS_OK;
+
     for ( size_t i = 0; i < size; i++ )
-    {
+        switch( string[i] ) {
+            case '\n': {
+#if AUTO_CR     /* Automatically treat \n as \n\r */
+                index += (tty_dim.width - (index % tty_dim.width));
+#else
+                index += tty_dim.width;
+#endif
+                continue;
+            }
 
-        _put_char(vga_entry( string[i], tty_color ), tty_cursor.X + i, tty_cursor.Y);
+            case '\r': {
+                index -= (index % tty_dim.width);
+                continue;
+            }
 
-    }
+            case '\t': {
+                for ( size_t j = 0; j < TAB_WIDTH; j++ )
+                    output_v &= _put_char(vga_entry(' ', tty_color), index + j, 0, ' ', false);
 
-    if ( tty_cursor.X + size >= tty_dim.width )
-    {
-        tty_cursor.X += (size_t)(size % tty_dim.width);
-        tty_cursor.Y += (unsigned int)(size / tty_dim.width);
-    } else
-    {
-        tty_cursor.X += size;
-    }
+                index += TAB_WIDTH;
 
-    _limit_cur();
+                continue;
+            }
+
+            default: {
+                output_v &= _put_char(vga_entry(string[i], tty_color), index, 0, string[i], false);
+                ++index;
+            }
+        }
+
+    tty_cursor.X = (index % tty_dim.width);
+    tty_cursor.Y = (unsigned int)(index / tty_dim.width);
+
+    _limit_cur(); /* Should not be needed, but it's better to add it just in case. */
 
     tty_status = TTY_STATUS_READY;
     return output_v;
