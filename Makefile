@@ -74,6 +74,11 @@ $(OBJDIR)/%_c2.o: $(SRCDIR2)/%.c
 	@mkdir -p $(@D)
 	@bash $(C_COMPILER) $^ $@
 
+$(OBJDIR)/%_c3.o: $(SRCDIR3)/%.c
+	@echo !--- Compiling "$^" ---!
+	@mkdir -p $(@D)
+	@bash $(C_COMPILER) $^ $@
+
 $(OBJDIR)/%_libc1.o: $(LIBC)/%.c
 	@echo !--- Compiling "$^" ---!
 	@mkdir -p $(@D)

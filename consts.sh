@@ -9,6 +9,8 @@ export IMAGE="$OSNAME.iso"
 export PREFIX="$HOME/opt/cross"
 export PATH="$PREFIX/bin:$PATH"
 
+export C_DEFINES=-D__i386__
+
 export LIB="lib"
 export LIB_DIR="$LIB/$ARCH"
 export BOOT_O="$LIB_DIR/boot.o"

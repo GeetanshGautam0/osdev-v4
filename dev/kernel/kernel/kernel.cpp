@@ -8,4 +8,10 @@ void kernel_main
     tty.ClearScreen();
     tty.Write("Hello, Kernel!");
 
+#ifdef __i386__
+    tty.Write("__i386__");
+#else
+    tty.SetColor(VGA_COLOR::WHITE, VGA_COLOR::RED);
+#endif
+
 }
