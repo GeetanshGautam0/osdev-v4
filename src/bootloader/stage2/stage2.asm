@@ -6,6 +6,9 @@ extern _cstart_
 global entry
 
 entry:
+    mov si, msg_s2e_call
+    call puts
+
     cli                                             ; Interrupts should be disabled while setting up the stack
 
     ; ds should already be set by stage 1
@@ -29,3 +32,6 @@ entry:
     cli
     hlt
 
+%include "src/helper/puts.ASM_HELPER"
+
+msg_s2e_call: db '[S] <S2.ENTRY>: Entered STAGE2 of bootloader.', ENDL

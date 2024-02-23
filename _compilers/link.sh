@@ -16,7 +16,7 @@ if [ -d "flattened" ]; then true; else
   echo -e "${Red}Could not make the directory 'flattened'${NC}"
 fi
 
-find "$obj_dir" -maxdepth 10 -type f -exec mv -i '{}' flattened/ ';'
+find "$obj_dir" -maxdepth 10 -type f -exec cp -i '{}' flattened/ ';'
 mv flattened "$obj_dir/flat"
 
 O16ld=/usr/bin/watcom/binl64/wlink
@@ -30,8 +30,8 @@ echo cp "${obj_dir}/flat/${bootloader_o}" "${bootloader_bin}"
 cp "${obj_dir}/flat/${bootloader_o}" "${bootloader_bin}"
 
 # Stage 2: 16 bit link
-echo $O16ld NAME "${stage2_bin}" FILE \{ "${obj_dir}/flat/${stage2_o}" "${obj_dir}/flat/${stage2_co}" \} OPTION MAP="${stage2_map}" "@${stage2_lds}"
-$O16ld NAME "${stage2_bin}" FILE \{ "${obj_dir}/flat/${stage2_o}" "${obj_dir}/flat/${stage2_co}" \} OPTION MAP="${stage2_map}" "@${stage2_lds}"
+echo $O16ld NAME "${stage2_bin}" FILE \{ $(echo $obj_dir/bootloader/stage2/*.o) \} OPTION MAP="${stage2_map}" "@${stage2_lds}"
+$O16ld NAME "${stage2_bin}" FILE \{ $(echo $obj_dir/bootloader/stage2/*.o) \} OPTION MAP="${stage2_map}" "@${stage2_lds}"
 
 # Temporary kernel binary
 #linker_flags="-ffreestanding"
