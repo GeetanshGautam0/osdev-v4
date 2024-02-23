@@ -32,7 +32,9 @@ export build_dir="build"
 
 export bootloader_o="bootloader_asm.o"
 export kernel_o="kernel_asm.o"
+export stage2_o="stage2_asm.o"
 export bootloader_bin="${build_dir}/bootloader.bin"
+export stage2_bin="${build_dir}/stage2.bin"
 export kernel_bin="${build_dir}/kernel.bin"
 
 export floppy_img="${os_name}.img"

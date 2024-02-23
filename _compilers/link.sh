@@ -20,9 +20,11 @@ mv flattened "$obj_dir/flat"
 mkdir -p "${build_dir}"
 
 # temp
-echo -e "${Orange}WARNING (link.sh): ONLY LOADING BOOTLOADER AND KERNEL_ASM${NC}"
+echo -e "${Orange}WARNING (link.sh): ONLY LOADING BOOTLOADER, STAGE2, AND KERNEL_ASM${NC}"
 cp "${obj_dir}/flat/${bootloader_o}" "${bootloader_bin}"
+cp "${obj_dir}/flat/${stage2_o}" "${stage2_bin}"
 cp "${obj_dir}/flat/${kernel_o}" "${kernel_bin}"
+
 
 # Check to make sure that the binary exists
 pr_chkfile "$bootloader_bin"
