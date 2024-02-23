@@ -75,7 +75,8 @@ $(OBJDIR)/%_16c.o: $(SRCDIR)/%.16c
 
 hexdump:
 	@echo $(FLOPPY) ":"
-	@hd $(FLOPPY)
+	@hd $(FLOPPY) > "hd.txt"
+	@bash ./$(COMP)/print_file.sh "hd.txt"
 	@echo
 	@echo
 
