@@ -1,21 +1,31 @@
-org 0x0
 bits 16
 
-start:
-    jmp a_bs2_main
+section _ENTRY class=CODE
 
-; ----------------------------------------------------------------------------------------------------------------------
-;                                           NO NEW CODE ABOVE THIS POINT
-; ----------------------------------------------------------------------------------------------------------------------
+extern _cstart_
+global entry
 
-%include "src/helper/puts.ASM_HELPER"               ; Include the puts helper script. Defines the puts routine and the ENDL macro
-%include "src/helper/rset.ASM_HELPER"               ; Include the puts helper script. Defines the puts routine and the ENDL macro
+entry:
+    cli                                             ; Interrupts should be disabled while setting up the stack
 
-a_bs2_main:                                         ; The main function of stage2.bin
-    mov si, msg_hello                               ; Move the address of the start of the hello message into the si register
-    call puts                                       ; Call the put string routine to inform the user that stage2.bin has been
-                                                    ;       found and a_bs2_main has been called.
+    ; ds should already be set by stage 1
+    mov ax, ds
+    mov ss, ax
+    mov sp, 0
+    mov bp, sp
 
-    jmp wait_key_and_reboot
+    sti
 
-msg_hello: db '[S] <A_BS2_MAIN>: STAGE2.BIN found and loaded', ENDL
+    ; EXPECT boot drive in dl, send its argument to cstart function
+    xor dh, dh
+    push dx
+
+    call _cstart_                                   ; Call the cstart function in stage2.c
+
+    ; The code should never reach this point but out of caution, we'll clear the interrupt flag and
+    ; halt the CPU so that the OS hangs if this point is ever reached.
+    ;       DO NOT EXPECT THE CPU TO BE IN ANY PARTICULAR STAGE NOW.
+
+    cli
+    hlt
+

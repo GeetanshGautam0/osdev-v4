@@ -3,6 +3,10 @@
 
 source _compilers/consts.sh
 
+# Check that all relevant linker scripts exist
+echo "Checking for appropriate linker scripts"
+pr_chkfile "${stage2_lds}"
+
 # Flatten the OBJ dir first
 echo "Flattening '${obj_dir}'"
 chk_and_rm "flattened"
@@ -13,16 +17,25 @@ if [ -d "flattened" ]; then true; else
 fi
 
 find "$obj_dir" -maxdepth 10 -type f -exec mv -i '{}' flattened/ ';'
-
 mv flattened "$obj_dir/flat"
+
+O16ld=/usr/bin/watcom/binl64/wlink
 
 # Make the build dir
 mkdir -p "${build_dir}"
 
-# temp
-echo -e "${Orange}WARNING (link.sh): ONLY LOADING BOOTLOADER, STAGE2, AND KERNEL_ASM${NC}"
+# Get the raw bootloader binaries
+# Stage 1: ASM OBJ -> BIN
+echo cp "${obj_dir}/flat/${bootloader_o}" "${bootloader_bin}"
 cp "${obj_dir}/flat/${bootloader_o}" "${bootloader_bin}"
-cp "${obj_dir}/flat/${stage2_o}" "${stage2_bin}"
+
+# Stage 2: 16 bit link
+echo $O16ld NAME "${stage2_bin}" FILE \{ "${obj_dir}/flat/${stage2_o}" "${obj_dir}/flat/${stage2_co}" \} OPTION MAP="${stage2_map}" "@${stage2_lds}"
+$O16ld NAME "${stage2_bin}" FILE \{ "${obj_dir}/flat/${stage2_o}" "${obj_dir}/flat/${stage2_co}" \} OPTION MAP="${stage2_map}" "@${stage2_lds}"
+
+# Temporary kernel binary
+#linker_flags="-ffreestanding"
+echo cp "${obj_dir}/flat/${kernel_o}" "${kernel_bin}"
 cp "${obj_dir}/flat/${kernel_o}" "${kernel_bin}"
 
 

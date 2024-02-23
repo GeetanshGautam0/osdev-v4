@@ -33,10 +33,14 @@ export build_dir="build"
 export bootloader_o="bootloader_asm.o"
 export kernel_o="kernel_asm.o"
 export stage2_o="stage2_asm.o"
+export stage2_co="stage2_16c.o"
 export bootloader_bin="${build_dir}/bootloader.bin"
 export stage2_bin="${build_dir}/stage2.bin"
 export kernel_bin="${build_dir}/kernel.bin"
 
+# Linker scripts
+export stage2_lds="${src_dir}/bootloader/stage2/linker.lnk"
+export stage2_map="${build_dir}/stage2.map"
 export floppy_img="${os_name}.img"
 
 function chkfile {
