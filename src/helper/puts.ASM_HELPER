@@ -1,0 +1,50 @@
+;
+;   Print a NULL-TERMINATED string to the screen using the BIOS interrupt 0Eh.
+;
+;   Interrupt 10h:      Video-related functions
+;
+;   Write character in TTY mode.
+;                       AH: 0Eh
+;                       AL: ASCII character to write
+;                       BH: Page # (text mode)
+;                       BL: FG pixel color (graphics mode)
+;
+;   Params:
+;       ds:si           points to the string
+;
+
+%define ENDL            0x0D, 0x0A, 0x00; Newline, Carriage return, and Null terminator.
+
+puts:
+    ; save registers we will modify
+    push si
+    push ax
+
+_puts_loop:
+    lodsb                               ; Load a byte/word/double-word from DS:SI into AL/AX/EAX then increment
+                                        ;       SI by the number of bytes loaded.
+    or al, al                           ; The value in al will not be modified however some flags in the flags register
+                                        ;       including the Zero Flag will be. The zero flag is set if the result is zero.
+                                        ;       Thus, if the zero flag is set, the null terminator has been reached.
+                                        ;       Note: characters are stored as their ASCII number therefore \0 does not
+                                        ;             correspond to the character '0'.
+
+    jz _puts_done                       ; If zero flag is set (see above), the null terminator has been reached -> terminate
+                                        ;       the loop.
+
+    ; See docstring for information about this interrupt
+    mov ah, 0x0E                        ; Configure for TTY write
+    mov bh, 0x00                        ; Page number 0
+
+    int 0x10                            ; Interrupt 10h (16d) relates to video-functions
+
+
+    jmp _puts_loop                      ; Jump to the top of the loop and check the next character (... interate through the
+                                        ;       rest of the string)
+
+_puts_done:
+    ; Restore si and ax register values, return.
+    pop si
+    pop ax
+
+    ret

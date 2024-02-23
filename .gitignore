@@ -1,3 +1,4 @@
-cmake*
-*.swp
+cmake-*
+*.*swp
 .idea/*
+_CC/*

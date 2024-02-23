@@ -1,139 +1,85 @@
-true:
-	@echo "."
+COMP = _compilers
 
-SRCDIR1 = dev/kernel/kernel
-SRCDIR2 = dev/kernel/include
-SRCDIR3 = dev/kernel/arch/i386
-LIBC = dev/libc
+SRCDIR = src
+OBJDIR = obj
+BUILDDIR = build
+TOOLSDIR = tools
+TOOLCOMP = comp_tools
 
-OBJDIR = lib/i386
-C_COMPILER = ./n_cpp.sh
+VIRT = qemu-system-x86_64
+FLOPPY = myos.img
 
 rwildcard=$(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
 
-CPP_SRC1 = $(call rwildcard,$(SRCDIR1),*.cpp)
-CPP_SRC2 = $(call rwildcard,$(SRCDIR2),*.cpp)
-CPP_SRC3 = $(call rwildcard,$(SRCDIR3),*.cpp)
+ASM_SRC = $(call rwildcard,$(SRCDIR),*.asm)
+TLS_SRC = $(call rwildcard,$(TOOLSDIR),*.c)
 
-C_SRC1 = $(call rwildcard,$(SRCDIR1),*.c)
-C_SRC2 = $(call rwildcard,$(SRCDIR2),*.c)
-C_SRC3 = $(call rwildcard,$(SRCDIR3),*.c)
+ASM_OBJ = $(patsubst $(SRCDIR)/%.asm, $(OBJDIR)/%_asm.o, $(ASM_SRC))		# patsubst: Pattern Substitution
+																			#			(p1, p2, iter)
+																			#			p1: pattern to find
+																			#			p2: pattern to replace p1 with
+																			#			iter: an iterable object (list) that contains the strings to search.
 
-S_SRC1 = $(call rwildcard,$(SRCDIR1),*.s)
-S_SRC2 = $(call rwildcard,$(SRCDIR2),*.s)
-S_SRC3 = $(call rwildcard,$(SRCDIR3),*.s)
+TLS_OBJ = $(patsubst $(TOOLSDIR)/%.c, $(TOOLCOMP)/%.cto, $(TLS_SRC))
 
-L_SRC1 = $(call rwildcard,$(LIBC),*.c)
-L_SRC2 = $(call rwildcard,$(LIBC),*.cpp)
+OBJS = $(strip $(ASM_OBJ))
 
-OBJS1 = $(patsubst $(SRCDIR1)/%.c, $(OBJDIR)/%_c1.o, $(C_SRC1))
-OBJS2 = $(patsubst $(SRCDIR2)/%.c, $(OBJDIR)/%_c2.o, $(C_SRC2))
-OBJS3 = $(patsubst $(SRCDIR3)/%.c, $(OBJDIR)/%_c3.o, $(C_SRC3))
-OBJS4 = $(patsubst $(SRCDIR1)/%.cpp, $(OBJDIR)/%_cpp1.o, $(CPP_SRC1))
-OBJS5 = $(patsubst $(SRCDIR2)/%.cpp, $(OBJDIR)/%_cpp2.o, $(CPP_SRC2))
-OBJS6 = $(patsubst $(SRCDIR3)/%.cpp, $(OBJDIR)/%_cpp3.o, $(CPP_SRC3))
-OBJS7 = $(patsubst $(LIBC)/%.c, $(OBJDIR)/%_libc1.o, $(L_SRC1))
-OBJS8 = $(patsubst $(LIBC)/%.cpp, $(OBJDIR)/%_libc2.o, $(L_SRC2))
-OBJS9  = $(patsubst $(SRCDIR1)/%.s, $(OBJDIR)/%_s1.o, $(S_SRC1))
-OBJS10 = $(patsubst $(SRCDIR2)/%.s, $(OBJDIR)/%_s2.o, $(S_SRC2))
-OBJS11 = $(patsubst $(SRCDIR3)/%.s, $(OBJDIR)/%_s3.o, $(S_SRC3))
+.PHONY: clean compile bootable link hexdump run debug tools
 
-OBJS = $(strip $(OBJS1) $(OBJS2) $(OBJS3) $(OBJS4) $(OBJS5) $(OBJS6) $(OBJS7) $(OBJS8) $(OBJS9) $(OBJS10) $(OBJS11))
-CPP_SRC = $(strip $(CPP_SRC1) $(CPP_SRC2) $(CPP_SRC3) $(L_SRC2))
-C_SRC = $(strip $(C_SRC1) $(C_SRC2) $(C_SRC3) $(L_SRC1))
+clean:
+	@echo "Clearing previous compilation..."
+	bash $(COMP)/clean.sh
+	@echo "Clear operation compete."
+	@echo
 
-help:
-	@grep -B1 -E "^[a-zA-Z0-9_-]+\:([^\=]|$$)" Makefile \
-     | grep -v -- -- \
-     | sed 'N;s/\n/###/' \
-     | sed -n 's/^#: \(.*\)###\(.*\):.*/\2###\1/p' \
-     | column -t  -s '###'
 
-#: debug
+compile: $(OBJS)
+
+bootable:
+	@echo "Making bootable floppy ..."
+	bash $(COMP)/bootable.sh
+	@echo
+	@echo
+
+
+link:
+	@echo "Linking ..."
+	bash $(COMP)/link.sh
+	@echo
+	@echo
+
+tools: $(TLS_OBJ)
+
+$(TOOLCOMP)/%.cto: $(TOOLSDIR)/%.c
+	@echo "Compiling "$^" as a (TOOLCHAIN) C file"
+	bash $(COMP)/comp_tools_c.sh $^ $@ $(@D)
+	@echo
+	@echo
+
+
+$(OBJDIR)/%_asm.o: $(SRCDIR)/%.asm
+	@echo "Compiling "$^" as an assembly file"
+	mkdir -p $(@D)														# Make the destination dir
+	bash $(COMP)/comp_n_asm.sh $^ $@
+	@echo
+	@echo
+
+
+hexdump:
+	@echo $(FLOPPY) ":"
+	@hd $(FLOPPY)
+	@echo
+	@echo
+
+
+tools: $(BUILDDIR)/tools/fat
+
+
+all: clean compile link bootable hexdump
+
+
+run:
+	$(VIRT) -fda $(FLOPPY)
+
 debug:
-	@echo "USING ARCH i386"
-
-	@echo "OBJ: $(OBJS)"
-	@echo "CPP: $(CPP_SRC)"
-	@echo "C  : $(C_SRC)"
-
-
-$(OBJDIR)/%_cpp1.o: $(SRCDIR1)/%.cpp
-	@echo !--- Compiling "$^" ---!
-	@mkdir -p $(@D)
-	@bash $(C_COMPILER) $^ $@
-
-$(OBJDIR)/%_cpp2.o: $(SRCDIR2)/%.cpp
-	@echo !--- Compiling "$^" ---!
-	@mkdir -p $(@D)
-	@bash $(C_COMPILER) $^ $@
-
-$(OBJDIR)/%_cpp3.o: $(SRCDIR3)/%.cpp
-	@echo !--- Compiling "$^" ---!
-	@mkdir -p $(@D)
-	@bash $(C_COMPILER) $^ $@
-
-$(OBJDIR)/%_c1.o: $(SRCDIR1)/%.c
-	@echo !--- Compiling "$^" ---!
-	@mkdir -p $(@D)
-	@bash $(C_COMPILER) $^ $@
-
-$(OBJDIR)/%_c2.o: $(SRCDIR2)/%.c
-	@echo !--- Compiling "$^" ---!
-	@mkdir -p $(@D)
-	@bash $(C_COMPILER) $^ $@
-
-$(OBJDIR)/%_c3.o: $(SRCDIR3)/%.c
-	@echo !--- Compiling "$^" ---!
-	@mkdir -p $(@D)
-	@bash $(C_COMPILER) $^ $@
-
-$(OBJDIR)/%_s1.o: $(SRCDIR1)/%.s
-	@echo !--- Compiling "$^" ---!
-	@mkdir -p $(@D)
-	@bash $(C_COMPILER) $^ $@
-
-$(OBJDIR)/%_s2.o: $(SRCDIR2)/%.s
-	@echo !--- Compiling "$^" ---!
-	@mkdir -p $(@D)
-	@bash $(C_COMPILER) $^ $@
-
-$(OBJDIR)/%_s3.o: $(SRCDIR3)/%.s
-	@echo !--- Compiling "$^" ---!
-	@mkdir -p $(@D)
-	@bash $(C_COMPILER) $^ $@
-
-$(OBJDIR)/%_libc1.o: $(LIBC)/%.c
-	@echo !--- Compiling "$^" ---!
-	@mkdir -p $(@D)
-	@bash $(C_COMPILER) $^ $@
-
-$(OBJDIR)/%_libc2.o: $(LIBC)/%.cpp
-	@echo !--- Compiling "$^" ---!
-	@mkdir -p $(@D)
-	@bash $(C_COMPILER) $^ $@
-
-compile: true $(OBJS)
-
-#: bootloader
-bootloader: true
-	bash ./bootloader.sh
-
-#: clean
-clean: true
-	bash ./clean.sh
-
-#: link
-link: true
-	bash ./link.sh
-
-verify_mb: true
-	bash ./verify_multiboot.sh
-
-mk_image: true
-	bash ./image.sh
-
-run: true
-	bash ./run.sh
-
-all: debug clean compile link verify_mb mk_image  # bootloader does not need to be included anymore
+	@bash $(COMP)/debug.sh
