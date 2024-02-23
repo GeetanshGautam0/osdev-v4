@@ -46,7 +46,12 @@ _boot_os:
 %include "src/helper/disk.ASM_HELPER"       ; Import the contents of the helper script disk.ASM_HELPER, which includes the
                                             ;       lab_to_chs, disk_read, and disk_reset routines.
                                             ;       REQUISITES: disk_read_failure is defined as a label in this file.
-
+%include "src/helper/rset.ASM_HELPER"       ; Import the contents of the helper script rset.ASM_HELPER, which includes the
+                                            ;       routine wait_key_and_reboot.
+                                            ;       See script for REQUISITES and ASSUMPTIONS
+;
+; Error Handlers
+;
 
 disk_read_failure:                          ; Error handler for failure mode of disk_read
     mov si, msg_dr_fail                     ; Load an error message
@@ -57,18 +62,17 @@ stage2_not_found:
     mov si, msg_no_stage2                   ; Load error message for not finding STAGE2.BIN
     call puts
 
-wait_key_and_reboot:                        ; Wait for an input and reboot
-    ; Print message
-    mov si, msg_w_key_pr
-    call puts
-
-    mov ah, 0
-    int 0x16                                ; Wait for a keypress
-    jmp 0xFFFF:0                            ; Jump to start of BIOS (effectively reboot)
+;
+; Halt routine
+;
 
 halt:
     cli                                     ; Disable interrupts so CPU can't escape the "halt" instruction ahead.
     hlt
+
+;
+; Main routine
+;
 
 
 main:
@@ -258,7 +262,6 @@ main:
 
 
 msg_hello:      db '[M] B', ENDL                        ; Boot
-msg_w_key_pr:   db '[I] PRESS KEY TO REBOOT', ENDL
 msg_dr_fail:    db '[FATAL] E1', ENDL                   ; E1: Disk read failure
 msg_no_stage2:  db '[FATAL] E2', ENDL                   ; E2: STAGE2.BIN not found
 

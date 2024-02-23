@@ -1,0 +1,23 @@
+;
+; wait_key_and_reboot
+;   Waits for a keypress and then reboots the system
+;
+;   Assumptions:
+;       BIOS starts at 0xFFFF:0x0000
+;       Interrupt 0x16 available and corresponds to the "Wait for keypress" function. (ah = 0)
+;
+;   Requisites:
+;       puts.ASM_HELPER has been included in whatever file imports this file (need puts routine and ENDL symbol)
+;
+
+wait_key_and_reboot:                        ; Wait for an input and reboot
+    ; Print message
+    mov si, msg_w_key_pr
+    call puts
+
+    mov ah, 0
+    int 0x16                                ; Wait for a keypress
+    jmp 0xFFFF:0                            ; Jump to start of BIOS (effectively reboot)
+
+
+msg_w_key_pr:   db '[I] PRESS KEY TO REBOOT', ENDL
