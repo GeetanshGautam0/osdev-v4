@@ -18,12 +18,14 @@
  *      All others saved by callee
  *
  *  Name mangling:
- *      C functions are prepended with an underscore (cstart => _cstart_)
+ *      C functions are prepended with an underscore (cstart_ => _cstart_)
  * */
 
 void _cdecl cstart_
     (uint16_t boot_drive)
 {
-    puts("[S] Call fn _cstart_ of STAGE2.16C");
+//    puts("[S] <S2cSTART>: STAGE2.16C called.");
+    printf16("[S] <S2cSTART>: STAGE2.16C called.\n\r");
+    printf16("[S] <S2cSTART>: STAGE2.16C called %d-%i-0x%x-%c-%s-0x%X.\n\r", 10, 12, 14, 'f', "test", 20);
     for (;;);
 }

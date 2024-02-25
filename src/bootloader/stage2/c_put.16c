@@ -18,3 +18,14 @@ void puts ( const char* str )
 
 }
 
+void puts_f ( const char __far * str )
+{
+
+    while (*str)
+    {
+        putc(*str);
+        ++str;
+    }
+
+}
+
