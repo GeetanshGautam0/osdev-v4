@@ -1,0 +1,2 @@
+*.16c linguist-language=C
+*.ASM_HELPER linguist-language=asm
