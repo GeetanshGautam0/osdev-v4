@@ -46,29 +46,33 @@ _boot_os:
 %include "src/helper/disk.ASM_HELPER"       ; Import the contents of the helper script disk.ASM_HELPER, which includes the
                                             ;       lab_to_chs, disk_read, and disk_reset routines.
                                             ;       REQUISITES: disk_read_failure is defined as a label in this file.
-
+%include "src/helper/rset.ASM_HELPER"       ; Import the contents of the helper script rset.ASM_HELPER, which includes the
+                                            ;       routine wait_key_and_reboot.
+                                            ;       See script for REQUISITES and ASSUMPTIONS
+;
+; Error Handlers
+;
 
 disk_read_failure:                          ; Error handler for failure mode of disk_read
     mov si, msg_dr_fail                     ; Load an error message
     call puts                               ; Print the message
-    ; If the disk read fails, you ain't finging no kernel.
+    ; If the disk read fails, you ain't finging no stage2.
 
-kernel_not_found:
-    mov si, msg_no_kernel                   ; Load error message for not finding kernel.bin
+stage2_not_found:
+    mov si, msg_no_stage2                   ; Load error message for not finding STAGE2.BIN
     call puts
 
-wait_key_and_reboot:                        ; Wait for an input and reboot
-    ; Print message
-    mov si, msg_w_key_pr
-    call puts
-
-    mov ah, 0
-    int 0x16                                ; Wait for a keypress
-    jmp 0xFFFF:0                            ; Jump to start of BIOS (effectively reboot)
+;
+; Halt routine
+;
 
 halt:
     cli                                     ; Disable interrupts so CPU can't escape the "halt" instruction ahead.
     hlt
+
+;
+; Main routine
+;
 
 
 main:
@@ -144,7 +148,7 @@ main:
 
     call disk_read                  ; Call the function
 
-.find_kernel_bin:
+.find_stage2_bin:
     ; use bx to count the number of directories checked
     ;     di to point to the current directory entry
 
@@ -153,26 +157,26 @@ main:
 
 .search_kb:
 
-    mov si, file_kernel_bin         ; si: expected file name of kernel.bin
+    mov si, file_stage2_bin         ; si: expected file name of STAGE2.BIN
     mov cx, 11                      ; cx: compare upto 11 characters of the name
 
     push di                         ; save the current value of di
     repe cmpsb                      ; Repeat - compare string bytes
     pop di                          ; Restore pointer
 
-    je .kernel_found                ; If the strings are equal, jump to the kernel_found label
+    je .stage2_found                ; If the strings are equal, jump to the stage2_found label
     add di, 32                      ; di += 32; 32 is the size of one directory entry -> di => next entry
     inc bx                          ; Increment the number of directory entries checked
     cmp bx, [bdb_dir_entries_count] ; Check to see if there are more entries to check
 
     jl .search_kb                   ; If there are more entries to check (bx < dir entries count), loop
-    jmp kernel_not_found            ; Jump to error message.
+    jmp stage2_not_found            ; Jump to error message.
 
-.kernel_found:
+.stage2_found:
 
     ; di should have the address to the entry
     mov ax, [di + 26]               ; First logical cluster field (offset 26)
-    mov [kernel_cluster], ax         ; Save the above value to the kernel_cluster field
+    mov [stage2_cluster], ax         ; Save the above value to the stage2_cluster field
 
     ; load FAT from disk into memory
     mov ax, [bdb_reserved_sectors]
@@ -182,37 +186,37 @@ main:
 
     call disk_read
 
-    ; Read kernel and process FAT chain
+    ; Read stage2 and process FAT chain
     ; REFER TO THE REAL MODE ADDRESS SPACE (THE FIRST MiB)
     ;       0x0000:0x7E00 -> 0x0000:0x7FFFF is the available for use and is the largest contiguous
     ;       usable region of memory in this mode. More memory will become accessible in 32-bit protected mode
 
     ; Leaving some room for the FAT, using address 0x0000:0x2000 to store the data to (~380 KiB).
 
-    mov bx, KERNEL_LOAD_SEGMENT
+    mov bx, stage2_LOAD_SEGMENT
     mov es, bx
-    mov bx, KERNEL_LOAD_OFFSET
+    mov bx, stage2_LOAD_OFFSET
 
-    ; es:bs = KERNEL_LOAD_SEGMENT:KERNEL_LOAD_OFFSET
+    ; es:bs = stage2_LOAD_SEGMENT:stage2_LOAD_OFFSET
 
-.load_kernel_loop:
+.load_stage2_loop:
 
     ; Read next cluster
-    mov ax, [kernel_cluster]
+    mov ax, [stage2_cluster]
     ; TODO: Fix this magic number. This will only work for a 1.44M floppy disk.
-    add ax, 31                      ; First cluster = (kernel cluster - 2) * sectors per cluster + start sector
+    add ax, 31                      ; First cluster = (stage2 cluster - 2) * sectors per cluster + start sector
                                     ; start sector = reserved + fats + root directory size
 
     mov cl, 1
     mov dl, [ebr_drive_number]
     call disk_read
 
-    ; TODO: Fix this line. The add instruction will lead to an overflow if the kernel.bin file is larger than 64 kilobytes.
-    ;       The first part of the loaded kernel will be overwritten as the address overflows and returns to 0.
+    ; TODO: Fix this line. The add instruction will lead to an overflow if the STAGE2.BIN file is larger than 64 kilobytes.
+    ;       The first part of the loaded stage2 will be overwritten as the address overflows and returns to 0.
     add bx, [bdb_bytes_per_sector]
 
     ; Compute the location of the next sector
-    mov ax, [kernel_cluster]
+    mov ax, [stage2_cluster]
     mov cx, 3
     mul cx
     mov cx, 2
@@ -236,19 +240,19 @@ main:
     cmp ax, 0x0FF8                  ; If ax > 0xFF8, end of chain
     jae .read_finish
 
-    mov [kernel_cluster], ax
-    jmp .load_kernel_loop
+    mov [stage2_cluster], ax
+    jmp .load_stage2_loop
 
 .read_finish:
-    ; Jump to kernel
+    ; Jump to stage2
 
     mov dl, [ebr_drive_number]      ; boot device in dl
-    mov ax, KERNEL_LOAD_SEGMENT     ; set segment registers
+    mov ax, stage2_LOAD_SEGMENT     ; set segment registers
     mov ds, ax
     mov es, ax
 
-    ; Far jump to the kernel
-    jmp KERNEL_LOAD_SEGMENT:KERNEL_LOAD_OFFSET
+    ; Far jump to the stage2
+    jmp stage2_LOAD_SEGMENT:stage2_LOAD_OFFSET
     jmp .done                       ; should never happen
 
 .done:
@@ -258,17 +262,16 @@ main:
 
 
 msg_hello:      db '[M] B', ENDL                        ; Boot
-msg_w_key_pr:   db '[I] PRESS KEY TO REBOOT', ENDL
 msg_dr_fail:    db '[FATAL] E1', ENDL                   ; E1: Disk read failure
-msg_no_kernel:  db '[FATAL] E2', ENDL                   ; E2: kernel.bin not found
+msg_no_stage2:  db '[FATAL] E2', ENDL                   ; E2: STAGE2.BIN not found
 
-file_kernel_bin:db 'KERNEL  BIN'    ; Name of kernel.bin file in the expected (FAT 12) format.
+file_stage2_bin:db 'STAGE2  BIN'    ; Name of stage2.bin file in the expected (FAT 12) format.
 
-; The following two variable dictate where in memory the kernel will be loaded to.
-KERNEL_LOAD_SEGMENT     equ 0x2000
-KERNEL_LOAD_OFFSET      equ 0
+; The following two variable dictate where in memory the stage2 will be loaded to.
+stage2_LOAD_SEGMENT     equ 0x2000
+stage2_LOAD_OFFSET      equ 0
 
-kernel_cluster:  dw 0
+stage2_cluster:  dw 0
 
 ; ----------------------------------------------------------------------------------------------------------------------
 ;                                          NO NEW CODE BEYOND THIS POINT

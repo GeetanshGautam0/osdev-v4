@@ -12,6 +12,7 @@ FLOPPY = myos.img
 rwildcard=$(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
 
 ASM_SRC = $(call rwildcard,$(SRCDIR),*.asm)
+C16_SRC = $(call rwildcard,$(SRCDIR),*.16c)
 TLS_SRC = $(call rwildcard,$(TOOLSDIR),*.c)
 
 ASM_OBJ = $(patsubst $(SRCDIR)/%.asm, $(OBJDIR)/%_asm.o, $(ASM_SRC))		# patsubst: Pattern Substitution
@@ -19,10 +20,11 @@ ASM_OBJ = $(patsubst $(SRCDIR)/%.asm, $(OBJDIR)/%_asm.o, $(ASM_SRC))		# patsubst
 																			#			p1: pattern to find
 																			#			p2: pattern to replace p1 with
 																			#			iter: an iterable object (list) that contains the strings to search.
+C16_OBJ = $(patsubst $(SRCDIR)/%.16c, $(OBJDIR)/%_16c.o, $(C16_SRC))
 
 TLS_OBJ = $(patsubst $(TOOLSDIR)/%.c, $(TOOLCOMP)/%.cto, $(TLS_SRC))
 
-OBJS = $(strip $(ASM_OBJ))
+OBJS = $(strip $(ASM_OBJ) $(C16_OBJ))
 
 .PHONY: clean compile bootable link hexdump run debug tools
 
@@ -64,10 +66,17 @@ $(OBJDIR)/%_asm.o: $(SRCDIR)/%.asm
 	@echo
 	@echo
 
+$(OBJDIR)/%_16c.o: $(SRCDIR)/%.16c
+	@echo "Compiling "$^" as an 16-BIT C file"
+	mkdir -p $(@D)														# Make the destination dir
+	bash $(COMP)/comp_16b_c.sh $^ $@
+	@echo
+	@echo
 
 hexdump:
 	@echo $(FLOPPY) ":"
-	@hd $(FLOPPY)
+	@hd $(FLOPPY) > "hd.txt"
+	@bash ./$(COMP)/print_file.sh "hd.txt"
 	@echo
 	@echo
 

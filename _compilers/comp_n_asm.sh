@@ -11,7 +11,14 @@ chk_and_rm "$2"                       # Remove the destination file if it exists
 
 echo -e "Using ${Purple}${asm_comp}${NC} to compile $1"
 
-$asm_comp "$1" -f bin -o "$2"         # Compile the file
+if [ "$1" == "src/bootloader/stage1/bootloader.asm" ]
+then
+  echo "$asm_comp" "$1" -f bin -o "$2"
+  $asm_comp "$1" -f bin -o "$2"         # Compile the file
+else
+  echo "$asm_comp" "$1" -f obj -o "$2"
+  $asm_comp "$1" -f obj -o "$2"         # Compile the file
+fi
 
 chkfile "$2"
 _rv51=$?

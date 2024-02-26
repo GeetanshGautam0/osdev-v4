@@ -1,0 +1,31 @@
+#include "c_stdint.h"
+#include "c_stdio.h"
+
+
+/*
+ * The CDECL calling convention:
+ *
+ *      Passed through stack
+ *      Pushed from right to left
+ *      Caller removes parameters from stack
+ *
+ *  Returns:
+ *      Integers, ptrs: EAX
+ *      Floating point: ST0
+ *
+ *  Registers:
+ *      EAX, ECX, EDX saved by called
+ *      All others saved by callee
+ *
+ *  Name mangling:
+ *      C functions are prepended with an underscore (cstart_ => _cstart_)
+ * */
+
+void _cdecl cstart_
+    (uint16_t boot_drive)
+{
+//    puts("[S] <S2cSTART>: STAGE2.16C called.");
+    printf16("[S] <S2cSTART>: STAGE2.16C called.\n\r");
+    printf16("[S] <S2cSTART>: STAGE2.16C called %d-%i-0x%x-%c-%s-0x%X.\n\r", 10, 12, 14, 'f', "test", 20);
+    for (;;);
+}

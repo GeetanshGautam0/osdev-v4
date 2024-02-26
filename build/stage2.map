@@ -1,0 +1,102 @@
+Open Watcom Linker Version 2.0 beta Feb 22 2024 01:42:13 (64-bit)
+Copyright (c) 2002-2024 The Open Watcom Contributors. All Rights Reserved.
+Portions Copyright (c) 1985-2002 Sybase, Inc. All Rights Reserved.
+Created on:       24/02/24 23:36:03
+Executable Image: build/stage2.bin
+creating a RAW Binary Image executable
+
+
+                        +------------+
+                        |   Groups   |
+                        +------------+
+
+Group                           Address              Size
+=====                           =======              ====
+
+DGROUP                          000005b2             00000088
+
+
+
+                        +--------------+
+                        |   Segments   |
+                        +--------------+
+
+Segment                Class          Group          Address         Size
+=======                =====          =====          =======         ====
+
+_ENTRY                 CODE           AUTO           00000000        0000005b
+_TEXT                  CODE           AUTO           0000005b        00000515
+_TEST                  CODE           AUTO           00000570        00000041
+CONST                  DATA           DGROUP         000005b2        00000065
+CONST2                 DATA           DGROUP         00000618        00000022
+_DATA                  DATA           DGROUP         0000063a        00000000
+
+
+                        +----------------+
+                        |   Memory Map   |
+                        +----------------+
+
+* = unreferenced symbol
++ = symbol only referenced locally
+
+Address        Symbol
+=======        ======
+
+Module: obj/bootloader/stage2/c_printf_16c.o(/home/gsp/dev/OSDEV_V4/src/bootloader/stage2/c_printf.16c)
+0000005b       _printf16
+000002f1+      _put_number_
+00000618+      _x_chars_l
+00000629+      _X_chars
+Module: obj/bootloader/stage2/c_put_16c.o(/home/gsp/dev/OSDEV_V4/src/bootloader/stage2/c_put.16c)
+000004a8       putc_
+000004cf       puts_
+00000503       puts_f_
+Module: obj/bootloader/stage2/stage2_16c.o(/home/gsp/dev/OSDEV_V4/src/bootloader/stage2/stage2.16c)
+0000053a       _cstart_
+Module: obj/bootloader/stage2/stage2_asm.o(src/bootloader/stage2/stage2.asm)
+00000000       entry
+Module: obj/bootloader/stage2/x86_asm.o(src/bootloader/stage2/x86.asm)
+00000570       _x86_div64_32
+0000059e       _x86_64_WriteCharTeletype
+
+
+                        +---------------------+
+                        |   Module Segments   |
+                        +---------------------+
+
+! = 32-bit segment
+c = initialized communal data
+
+Module          Segment               Class           Address         Size
+======          =======               =====           =======         ====
+
+/home/gsp/dev/OSDEV_V4/src/bootloader/stage2/c_printf.16c
+                _TEXT                 CODE           0000005b         0000044d
+                CONST                 DATA           000005b2         00000000
+                CONST2                DATA           00000618         00000022
+                _DATA                 DATA           0000063a         00000000
+/home/gsp/dev/OSDEV_V4/src/bootloader/stage2/c_put.16c
+                _TEXT                 CODE           000004a8         00000092
+                CONST                 DATA           000005b2         00000000
+                CONST2                DATA           0000063a         00000000
+                _DATA                 DATA           0000063a         00000000
+/home/gsp/dev/OSDEV_V4/src/bootloader/stage2/stage2.16c
+                _TEXT                 CODE           0000053a         00000036
+                CONST                 DATA           000005b2         00000065
+                CONST2                DATA           0000063a         00000000
+                _DATA                 DATA           0000063a         00000000
+src/bootloader/stage2/stage2.asm
+                _ENTRY                CODE           00000000         0000005b
+src/bootloader/stage2/x86.asm
+                _TEST                 CODE           00000570         00000041
+Warning! W1014: stack segment not found
+
+
+                        +-----------------------+
+                        |   Linker Statistics   |
+                        +-----------------------+
+
+Stack size:  0200 (512.)
+Memory size:  063a (1594.)
+Entry point address: 00000000
+Link time: 00:00.29
