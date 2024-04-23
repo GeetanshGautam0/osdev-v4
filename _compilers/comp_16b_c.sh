@@ -12,7 +12,7 @@ source _compilers/consts.sh
 pr_chkfile "$1"
 chk_and_rm "$2"
 
-C16flags="-4 -d3 -s -wx -ms -zl -zq"
+C16flags="-4 -d3 -s -wx -ms -zl -zq -za99"
 cc=/usr/bin/watcom/binl64/wcc
 
 echo "$cc" "${C16flags}" "$1" -fo="$2"

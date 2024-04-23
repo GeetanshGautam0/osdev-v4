@@ -1,0 +1,16 @@
+#include "../include/memory.h"
+
+void __far *
+    memset
+    (
+        void __far * ptr,
+        int value,
+        uint16_t num
+    )
+{
+    uint8_t __far * u8_ptr = (uint8_t __far *)ptr;
+    for (uint16_t i = 0; i < num; i++)
+        u8_ptr[i] = (uint8_t)value;
+
+    return ptr;
+}

@@ -1,0 +1,23 @@
+#include "../include/c_string.h"
+
+/* Returns the index of the first occurance of chr in str */
+/* Returns NULL if str == NULL or chr not in str */
+
+const char *
+        strchr
+        (
+            const char * str,
+            char chr
+        )
+{
+    if ( str == NULL ) return NULL;
+
+    while (*str)
+    {
+        if (*str == chr) return str;
+        ++str;
+    }
+
+    return NULL;
+
+}

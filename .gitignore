@@ -2,3 +2,5 @@ cmake-*
 *.*swp
 .idea/*
 _CC/*
+.vscode
+*.err

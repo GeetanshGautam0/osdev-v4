@@ -1,0 +1,73 @@
+#include "../include/disk.h"
+#include "../include/x86.h"
+
+
+bool
+    disk_init
+    (
+            disk_t * disk,
+            uint8_t drive_number
+    )
+{
+
+    uint8_t drive_type;
+    uint16_t cylinders, sectors, heads;
+
+    if ( !x86_disk_get_drive_params(disk->id, &drive_type, &cylinders, &sectors, &heads) )
+        return false;
+
+    disk->id = drive_number;
+    disk->cylinders = cylinders + 1;
+    disk->heads = heads + 1;
+    disk->sectors = sectors;
+
+    return true;
+}
+
+void disk_lba_to_chs
+        (
+            disk_t * disk,
+            uint32_t lba,
+            uint16_t * cyl_out,
+            uint16_t * sec_out,
+            uint16_t * head_out
+        )
+{
+    // Sector = (Logical Block Address) % (Sectors per Track) + 1
+    *sec_out = lba % disk->sectors + 1;
+
+    // Cylinder = ( LBA / Sectors Per Track ) / Heads
+    *cyl_out = ( lba / disk->sectors ) / disk->heads;
+
+    // Head = ( LBA / Sectors Per Track ) % Heads
+    *head_out = ( lba / disk->sectors ) % disk->heads;
+}
+
+bool
+    disk_read_sectors
+    (
+            disk_t * disk,
+            uint32_t lba,
+            uint8_t sectors,
+            uint8_t __far * data_out
+    )
+{
+
+    uint16_t cyl, sector, head;
+    disk_lba_to_chs(disk, lba, &cyl, &sector, &head);
+
+#if defined(_ST2_DISK_RETR_CNT)
+    for ( int i = 0; i < _ST2_DISK_RETR_CNT; i++ )
+#else
+    for ( int i = 0; i < 10; i++ )
+#endif
+    {
+        if (x86_disk_read(disk->id, cyl, sector, head, sectors, data_out))
+            return true;
+        
+        x86_disk_reset(disk->id);
+    }
+    
+    return false;
+
+}
