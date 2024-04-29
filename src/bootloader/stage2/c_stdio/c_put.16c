@@ -4,7 +4,14 @@
 
 void putc ( char c )
 {
-    x86_64_WriteCharTeletype(c, 0);
+    switch (c)
+    {
+        case '\t':
+            for (int i = 0; i < TAB_WIDTH; i++) x86_64_WriteCharTeletype(' ', 0);
+            return;
+        default:
+            x86_64_WriteCharTeletype(c, 0);
+    }
 }
 
 void puts ( const char* str )

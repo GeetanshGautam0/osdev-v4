@@ -43,10 +43,18 @@ enum fat_attributes
     FAT_ATTRIBUTE_LFN               = FAT_ATTRIBUTE_READ_ONLY | FAT_ATTRIBUTE_HIDDEN | FAT_ATTRIBUTE_SYSTEM | FAT_ATTRIBUTE_VOLUME_ID
 };
 
-bool fat_init (disk_t * disk );
-fat_file_t __far * fat_open (disk_t * disk, const char * path);
-uint32_t fat_read(disk_t * disk, fat_file_t __far * file, uint32_t byte_count, void * data_out);
-bool fat_read_entry(disk_t * disk, fat_file_t __far * file, fat_directory_entry_t * entry);
-void fat_close(fat_file_t __far * file);
+static unsigned int get_attr(
+    fat_directory_entry_t * dire,
+    enum fat_attributes attr
+)
+{
+    return (unsigned int)(dire->attributes & attr);
+}
+
+bool                fat_init        (disk_t * disk);
+fat_file_t __far *  fat_open        (disk_t * disk, const char * path);
+uint32_t            fat_read        (disk_t * disk, fat_file_t __far * file, uint32_t byte_count, void * data_out);
+bool                fat_read_entry  (disk_t * disk, fat_file_t __far * file, fat_directory_entry_t * entry);
+void                fat_close       (fat_file_t __far * file);
 
 #endif /* _FAT_H */

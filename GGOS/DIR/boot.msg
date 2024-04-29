@@ -1,0 +1,1 @@
+[S] Read file GGOS/DIR/BOOT.MSG

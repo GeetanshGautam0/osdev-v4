@@ -27,7 +27,7 @@ bdb_large_sector_count:     dd 0
 ebr_drive_number:           db 0                ; 0x00 floppy, 0x80 hdd
                             db 0                ; reserved
 ebr_signature:              db 0x29
-ebr_volume_id:              db 0x12, 0x24, 0x56, 0x78       ; Serial number, value doesn't matter
+ebr_volume_id:              db 0x12, 0x34, 0x56, 0x78       ; Serial number, value doesn't matter
 ebr_volume_label:           db 'GGOS       '    ; 11 bytes, padded w/ spaces
 ebr_system_id:              db 'FAT12   '       ; 8 bytes, padded w/ spaces
 

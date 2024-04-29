@@ -1,0 +1,88 @@
+#include "../include/file_io.h"
+
+
+bool load_dir_contents 
+( 
+    disk_t * disk_ptr, 
+    const char * file_path,
+    unsigned char n
+) 
+{
+
+    if (!fat_init(disk_ptr)) return false;
+
+    if ( n > _ST2_FIO_N_FDE ) n = _ST2_FIO_N_FDE;
+        
+    fat_file_t __far * fd = fat_open(disk_ptr, file_path);
+    int i = 0;  
+    while (fat_read_entry(disk_ptr, fd, &(_FDE[i])) && ++i <= n);
+
+    fat_close(fd); 
+
+    return true;
+
+}
+
+
+static unsigned int _c_sum_out;
+static unsigned int _c_sum ( const char * string, const unsigned int compare_to )
+{
+    _c_sum_out = 0;
+    for ( int i = 0; i < compare_to; i++ ) _c_sum_out += string[i];
+
+    return _c_sum_out;
+}
+
+
+bool echo_dir_contents
+(
+    disk_t * disk_ptr, 
+    const char * file_path, 
+    int n
+)
+{
+
+    if (!load_dir_contents(disk_ptr, file_path, n)) {
+        printf16("[E] Failed to load contents of %s\r\n", file_path);
+        return false;
+    }
+    // The entries are now loaded into _FDE.
+
+    if (n > _ST2_FIO_N_FDE) n = _ST2_FIO_N_FDE;
+    fat_directory_entry_t entry;
+
+    printf16("DIRECTORY OF %s\r\n", file_path);
+    bool c;
+
+    for (int i = 0; i < n; i++)
+    {
+        entry = _FDE[i];
+
+        if (!_c_sum(entry.name, 11)) continue;
+
+        printf16("\t|-    ");
+
+        for (int i = 0; i < 11; i++)
+            putc(entry.name[i]);
+
+        puts("\t[-");
+
+        // Print directory attr
+        putc(get_attr(&entry, FAT_ATTRIBUTE_DIRECTORY) ? 'D' : '-');
+
+        // Print RW attr
+        putc('r');
+        putc(get_attr(&entry, FAT_ATTRIBUTE_READ_ONLY) ? '-' : 'w');
+
+        // Print the system, archive and hidden attrs
+        putc(get_attr(&entry, FAT_ATTRIBUTE_SYSTEM) ? 'S' : '-');
+        putc(get_attr(&entry, FAT_ATTRIBUTE_ARCHIVE) ? 'z' : '-');
+        putc(get_attr(&entry, FAT_ATTRIBUTE_HIDDEN) ? 'H' : '-');
+
+        // Print volume ID and NL CR.
+        printf16("]\r\n");
+    }
+
+    return true;
+
+}
