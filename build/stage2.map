@@ -1,7 +1,7 @@
 Open Watcom Linker Version 2.0 beta Feb 22 2024 01:42:13 (64-bit)
 Copyright (c) 2002-2024 The Open Watcom Contributors. All Rights Reserved.
 Portions Copyright (c) 1985-2002 Sybase, Inc. All Rights Reserved.
-Created on:       24/04/28 17:42:46
+Created on:       24/04/28 17:49:11
 Executable Image: build/stage2.bin
 creating a RAW Binary Image executable
 
@@ -61,36 +61,36 @@ Module: obj/flbs2/disk_16c.o(/home/gsp/dev/OSDEV_V4/src/bootloader/stage2/disk/d
 000008de       disk_init_
 00000954+      disk_lba_to_chs_
 00000a07       disk_read_sectors_
+Module: obj/flbs2/fat_16c.o(/home/gsp/dev/OSDEV_V4/src/bootloader/stage2/fat/fat.16c)
+0000228e+      _name
+00000aa4+      __make_fat_name_
+00000b86+      __fat_cluster_to_lba_
+00000bdc+      __fat_read_boot_sector_
+00000c10+      __fat_read_fat_
+00000c54+      __fat_init_
+00000ec8+      __fat_close_
+00000f3f+      __fat_find_file_
+00000fc7+      __fat_next_cluster_
+00001050+      __fat_open_entry_
+0000122a+      __fat_open_
+000013c4+      __fat_read_
+00001748+      __fat_read_entry_
+000017a1       fat_init_
+000017c5       fat_open_
+000017f7       fat_read_
+0000183d       fat_read_entry_
+00001871       fat_close_
 Module: obj/flbs2/file_contents_16c.o(/home/gsp/dev/OSDEV_V4/src/bootloader/stage2/file_io/file_contents.16c)
-00000aa4+      load_file_content_
-00000b19       echo_file_content_
+00001895+      load_file_content_
+0000190a       echo_file_content_
 Module: obj/flbs2/is_lower_16c.o(/home/gsp/dev/OSDEV_V4/src/bootloader/stage2/ctype/is_lower.16c)
-00000c16       is_lower_
+00001a07       is_lower_
 Module: obj/flbs2/memcmp_16c.o(/home/gsp/dev/OSDEV_V4/src/bootloader/stage2/memory/memcmp.16c)
-00000c54       memcmp_
+00001a45       memcmp_
 Module: obj/flbs2/memcpy_16c.o(/home/gsp/dev/OSDEV_V4/src/bootloader/stage2/memory/memcpy.16c)
-00000ce9       memcpy_
+00001ada       memcpy_
 Module: obj/flbs2/memset_16c.o(/home/gsp/dev/OSDEV_V4/src/bootloader/stage2/memory/memset.16c)
-00000d5a       memset_
-Module: obj/flbs2/new_fat_16c.o(/home/gsp/dev/OSDEV_V4/src/bootloader/stage2/fat/new_fat.16c)
-000023ae+      _name
-00000db9+      __make_fat_name_
-00000e9b+      __fat_cluster_to_lba_
-00000ef1+      __fat_read_boot_sector_
-00000f25+      __fat_read_fat_
-00000f69+      __fat_init_
-000011dd+      __fat_close_
-00001254+      __fat_find_file_
-000012dc+      __fat_next_cluster_
-00001365+      __fat_open_entry_
-0000153f+      __fat_open_
-000016d9+      __fat_read_
-00001a5d+      __fat_read_entry_
-00001ab6       fat_init_
-00001ada       fat_open_
-00001b0c       fat_read_
-00001b52       fat_read_entry_
-00001b86       fat_close_
+00001b4b       memset_
 Module: obj/flbs2/stage2_16c.o(/home/gsp/dev/OSDEV_V4/src/bootloader/stage2/stage2.16c)
 00001baa       _cstart_
 00002166+      _g_data
@@ -152,42 +152,37 @@ Module          Segment               Class           Address         Size
                 CONST2                DATA           00002156         00000000
                 _DATA                 DATA           0000215a         00000000
 /home/gsp/dev/OSDEV_V4/src/bootloader/stage2/fat/fat.16c
-                _TEXT                 CODE           00000aa4         00000000
-                CONST                 DATA           00001f32         00000000
-                CONST2                DATA           00002156         00000000
-                _DATA                 DATA           0000215a         00000000
-/home/gsp/dev/OSDEV_V4/src/bootloader/stage2/file_io/file_contents.16c
-                _TEXT                 CODE           00000aa4         00000172
-                CONST                 DATA           00001f32         00000003
+                _TEXT                 CODE           00000aa4         00000df1
+                CONST                 DATA           00001f32         000000e8
                 CONST2                DATA           00002156         00000000
                 _DATA                 DATA           0000215a         00000004
-                _BSS                  BSS            0000228e         00000120
-/home/gsp/dev/OSDEV_V4/src/bootloader/stage2/ctype/is_lower.16c
-                _TEXT                 CODE           00000c16         0000003e
-                CONST                 DATA           00001f36         00000000
-                CONST2                DATA           00002156         00000000
-                _DATA                 DATA           0000215e         00000000
-/home/gsp/dev/OSDEV_V4/src/bootloader/stage2/memory/memcmp.16c
-                _TEXT                 CODE           00000c54         00000095
-                CONST                 DATA           00001f36         00000000
-                CONST2                DATA           00002156         00000000
-                _DATA                 DATA           0000215e         00000000
-/home/gsp/dev/OSDEV_V4/src/bootloader/stage2/memory/memcpy.16c
-                _TEXT                 CODE           00000ce9         00000071
-                CONST                 DATA           00001f36         00000000
-                CONST2                DATA           00002156         00000000
-                _DATA                 DATA           0000215e         00000000
-/home/gsp/dev/OSDEV_V4/src/bootloader/stage2/memory/memset.16c
-                _TEXT                 CODE           00000d5a         0000005f
-                CONST                 DATA           00001f36         00000000
-                CONST2                DATA           00002156         00000000
-                _DATA                 DATA           0000215e         00000000
-/home/gsp/dev/OSDEV_V4/src/bootloader/stage2/fat/new_fat.16c
-                _TEXT                 CODE           00000db9         00000df1
-                CONST                 DATA           00001f36         000000e8
+                _BSS                  BSS            0000228e         00000108
+/home/gsp/dev/OSDEV_V4/src/bootloader/stage2/file_io/file_contents.16c
+                _TEXT                 CODE           00001895         00000172
+                CONST                 DATA           0000201a         00000003
                 CONST2                DATA           00002156         00000000
                 _DATA                 DATA           0000215e         00000004
-                _BSS                  BSS            000023ae         00000108
+                _BSS                  BSS            00002396         00000120
+/home/gsp/dev/OSDEV_V4/src/bootloader/stage2/ctype/is_lower.16c
+                _TEXT                 CODE           00001a07         0000003e
+                CONST                 DATA           0000201e         00000000
+                CONST2                DATA           00002156         00000000
+                _DATA                 DATA           00002162         00000000
+/home/gsp/dev/OSDEV_V4/src/bootloader/stage2/memory/memcmp.16c
+                _TEXT                 CODE           00001a45         00000095
+                CONST                 DATA           0000201e         00000000
+                CONST2                DATA           00002156         00000000
+                _DATA                 DATA           00002162         00000000
+/home/gsp/dev/OSDEV_V4/src/bootloader/stage2/memory/memcpy.16c
+                _TEXT                 CODE           00001ada         00000071
+                CONST                 DATA           0000201e         00000000
+                CONST2                DATA           00002156         00000000
+                _DATA                 DATA           00002162         00000000
+/home/gsp/dev/OSDEV_V4/src/bootloader/stage2/memory/memset.16c
+                _TEXT                 CODE           00001b4b         0000005f
+                CONST                 DATA           0000201e         00000000
+                CONST2                DATA           00002156         00000000
+                _DATA                 DATA           00002162         00000000
 /home/gsp/dev/OSDEV_V4/src/bootloader/stage2/stage2.16c
                 _TEXT                 CODE           00001baa         000000db
                 CONST                 DATA           0000201e         00000115
@@ -228,4 +223,4 @@ Warning! W1014: stack segment not found
 Stack size:  0200 (512.)
 Memory size:  25d6 (9686.)
 Entry point address: 00000000
-Link time: 00:00.28
+Link time: 00:00.59

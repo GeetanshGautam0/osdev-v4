@@ -4,3 +4,4 @@ cmake-*
 _CC/*
 .vscode
 *.err
+*.warn
