@@ -1,0 +1,59 @@
+#include "../include/file_io.h"
+#include "../include/blpol.h"
+
+
+bool 
+    load_file_content
+( 
+    disk_t * disk_ptr, 
+    const char * file_path
+) /* Loads the file into _FF (fat_file_t *) */
+{
+    if (!fat_init(disk_ptr)) return false;
+
+    if (_FF != NULL) fat_close(_FF);                                                /* Close the previously opened file */
+
+    _FF = fat_open(disk_ptr, file_path);
+    return true;
+}
+
+
+bool 
+    echo_file_content 
+( 
+    disk_t * disk_ptr, 
+    char * buffer, 
+    const char * file_path 
+)
+{
+
+    if (!load_file_content(disk_ptr, file_path)) return false;                      /* Load the file content into _FF */
+    uint32_t read;                                                                 /* Temporary variable */
+
+    while ((read = fat_read(disk_ptr, _FF, sizeof(buffer), buffer)))
+    {
+        for (uint32_t i = 0; i < read; i++)
+        {
+            if (buffer[i] == '\n')
+                putc('\r');
+
+            putc(buffer[i]);
+        }
+    }
+
+    #ifdef FIO_ECHO_FILE_AUTO_CR
+        switch (buffer[read - 1])
+        {
+            case '\r':
+            case '\n':
+                return true;                                                        /* Newline/Carriage return taken care of. */
+            
+            default:                                                                /* A newline/CR was not added. */
+                puts("\r\n");
+                return true;
+        }
+    #else 
+        return true;
+        
+    #endif
+}

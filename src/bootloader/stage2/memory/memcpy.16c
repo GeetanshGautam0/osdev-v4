@@ -1,0 +1,20 @@
+#include "../include/memory.h"
+
+void __far *
+    memcpy
+    (
+        void __far * dst,
+        const void __far * src,
+        uint16_t num
+    )
+{
+
+    uint8_t __far * u8_dst = (uint8_t __far *)dst;
+    const uint8_t __far * u8_src = (const uint8_t __far *)src;
+
+    for (uint16_t i = 0; i < num; ++i)
+        u8_dst[i] = u8_src[i];
+
+    return dst;
+
+}

@@ -1,0 +1,6 @@
+#include "../include/ctype.h"
+
+char to_upper ( char c )
+{
+    return is_lower(c) ? ( c - 'a' + 'A' ) : c;
+}

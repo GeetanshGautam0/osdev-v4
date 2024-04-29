@@ -1,5 +1,9 @@
-#include "c_stdint.h"
-#include "c_stdio.h"
+#include "include/c_stdint.h"
+#include "include/c_stdio.h"
+#include "include/disk.h"
+#include "include/fat.h"
+#include "include/blpol.h"
+#include "include/file_io.h"
 
 
 /*
@@ -21,11 +25,46 @@
  *      C functions are prepended with an underscore (cstart_ => _cstart_)
  * */
 
+void __far * g_data = (void far*)0x00500200;
+
 void _cdecl cstart_
     (uint16_t boot_drive)
 {
-//    puts("[S] <S2cSTART>: STAGE2.16C called.");
-    printf16("[S] <S2cSTART>: STAGE2.16C called.\n\r");
-    printf16("[S] <S2cSTART>: STAGE2.16C called %d-%i-0x%x-%c-%s-0x%X.\n\r", 10, 12, 14, 'f', "test", 20);
+    printf16("[S] [S2c.START] STAGE2.16C called.\n\r");
+
+    disk_t disk;
+    if (!disk_init(&disk, boot_drive))
+    {
+        printf16("[E] [S2c.START] Error S2-1 disk init failed.\n\r");
+        goto _halt;
+    }
+    printf16("[S] [S2c.START] Disk initialization successful.\r\n");
+
+    disk_read_sectors(&disk, 19, 1, g_data);
+
+    if (!fat_init(&disk))
+    {
+        printf16("[E] [S2c.START] Error S2-2 FAT init failed.\n\r");
+        goto _halt;
+    }
+    printf16("[S] [S2c.START] FAT initialization successful.\r\n");
+
+    // Browse files in ROOT DIR
+    (void) echo_dir_contents(&disk, "/", 5);
+    (void) echo_dir_contents(&disk, "/GGOS", 5);
+    (void) echo_dir_contents(&disk, "/GGOS/DIR", 5);
+
+
+    // Read files                                                       
+    //      The function will find the first instance of the file name and print the contents.
+    char buffer[100];
+
+    (void) echo_file_content(&disk, buffer, "/boot.msg");
+    (void) echo_file_content(&disk, buffer, "//GGOS/DIR/boot.msg");
+    (void) echo_file_content(&disk, buffer, "/boot.msg");
+
+    fat_close(_FF);
+
+_halt:
     for (;;);
 }

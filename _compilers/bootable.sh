@@ -26,7 +26,8 @@ mkfs.fat -F 12 -n "$os_name" "$floppy_img"
 dd if="$bootloader_bin" of="$floppy_img" conv=notrunc     # Do not truncate
 mcopy -i "$floppy_img" "$stage2_bin" "::stage2.bin"
 mcopy -i "$floppy_img" "$kernel_bin" "::kernel.bin"
-mcopy -i "$floppy_img" test.txt "::test.txt"
+mcopy -i "$floppy_img" GGOS "::/GGOS"
+mcopy -i "$floppy_img" GGOS/DIR "::/GGOS/DIR"
 
 chkfile "$floppy_img"
 _rv07=$?

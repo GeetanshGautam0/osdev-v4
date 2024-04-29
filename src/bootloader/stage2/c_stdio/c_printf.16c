@@ -1,0 +1,186 @@
+/*
+ * This implementation of printf will only support the following:
+ *      - Specifiers d, i, u, o, x, X, c, s, %
+ *      - Length mod h (short int), l (long int)
+ *      * Precision and width specifiers not implemented.
+ *
+ *  The implementation also uses the _cdecl calling convention.
+*/
+
+#include "../include/c_stdio.h"
+#include "../include/c_stdint.h"
+#include "../include/x86.h"
+
+
+#define PRINTF16_STATE_N                            0
+#define PRINTF16_STATE_L                            1
+#define PRINTF16_STATE_S                            2
+
+#define PRINTF16_SIZE_H                             1
+#define PRINTF16_SIZE_DEF                           2
+#define PRINTF16_SIZE_L                             3
+#define PRINTF16_SIZE_HH                            10
+#define PRINTF16_SIZE_LL                            11
+
+
+int * _put_number ( int *, char, bool, int, bool);
+
+
+void _cdecl
+printf16    /* Implemented as a state machine */
+(
+    const char * __restrict fmt,
+    ...
+) {
+
+    int * argp = (int*)&fmt;                              /* The stack is aligned to sizeof(int) in 16b real mode */
+    int state = PRINTF16_STATE_N;
+    unsigned char l = 0, l2 = 0, L = 2, s = 0;
+
+    argp ++;                                            /* Check the next argument */
+
+    while ( *fmt ) {
+        switch (state) {
+
+            case PRINTF16_STATE_N:                      /* The normal state */
+            {
+
+                switch ( *fmt )
+                {
+                    case '%':                   state = PRINTF16_STATE_L;
+                                                break;
+                    default:                    putc(*fmt);
+                }
+                break;
+
+            }
+
+            case PRINTF16_STATE_L:
+            {
+                state = PRINTF16_STATE_S;
+                l2 = *(++fmt); --fmt;
+
+                switch ( l = *fmt )
+                {
+                    case '%':               putc('%');
+                                            state = PRINTF16_STATE_N;
+                                            break;
+
+                    case 'h':               if ( l2 == 'h' ) L = PRINTF16_SIZE_HH;
+                                            else L = PRINTF16_SIZE_H;
+                                            break;
+
+                    case 'l':               if ( l2 == 'l' ) L = PRINTF16_SIZE_LL;
+                                            else L = PRINTF16_SIZE_L;
+                                            break;
+
+                    default:
+                                            l2 = (l = 0);
+                }
+
+                if (state == PRINTF16_STATE_S) goto _PF16_S;
+                break;
+
+            }
+
+            case PRINTF16_STATE_S:
+                _PF16_S:
+
+                state = PRINTF16_STATE_N;
+
+                if (l) /*  LL or HH */       s = *(fmt += L >= 10 ? 2 : 1);
+                else                         s = *fmt;
+
+                switch (s)
+                {
+                    case 'd':                   /* Same as s = i; pass through */
+                    case 'i':                   /* signed int */
+                                                argp = _put_number(argp, L, true, 10, false);   // *, *, signed, base 10, -
+                                                break;
+                    case 'u':                   /* unsigned int */
+                                                argp = _put_number(argp, L, false, 10, false);  // *, *, unsigned, base 10, -
+                                                break;
+                    case 'x':                   /* lowercase, unsigned hex */
+                                                argp = _put_number(argp, L, false, 16, false); // *, *, unsigned, base 16, lowercase
+                                                break;
+                    case 'X':                   /* uppercase, unsigned hex */
+                                                argp = _put_number(argp, L, false, 16, true); // *, *, unsigned, base 16, uppercase
+                                                break;
+                    case 'c':                   /* character */
+                                                putc((char)*argp);
+                                                ++argp;
+                                                break;
+                    case 's':                   /* String */
+                                                l == 'l' ?
+                                                    puts_f(*(const char __far **)argp) :
+                                                    puts(  *(const char **)argp);
+                                                argp += (l == 'l' ? 2 : 1);
+                                                break;
+                    default:                    /* Invalid format */
+                                                putc('%');
+                                                if (l) putc(l);
+                                                if (l2) putc(l2);
+                                                putc(s);
+                                                break;
+
+                }
+
+                break;
+
+        }
+
+        ++fmt;
+    }
+}
+
+
+const char x_chars_l [] = "0123456789abcdef";
+const char X_chars []   = "0123456789ABCDEF";
+
+int *
+_put_number
+    ( int * argp, char l, bool sv, int base, bool up)
+{
+    char buffer [32];
+    int sign = (*argp >= 0) ? 1 : -1;
+    unsigned long long n;
+    int pos = 0;
+
+    switch ( l )
+    {
+        case PRINTF16_SIZE_L:               n = (unsigned long long)(*(long int *)argp);
+                                            argp += 2;
+                                            break;
+        case PRINTF16_SIZE_LL:              n = (unsigned long long)(*argp);
+                                            argp += 4;
+                                            break;
+
+        case PRINTF16_SIZE_HH:              /* Same code as integers (default) */
+        case PRINTF16_SIZE_H:               /* Same code as integers (default) */
+        default:                            n = (unsigned long long)(*(int *) argp);             /* Default length */
+                                            argp ++;
+                                            break;
+    }
+
+    // Covert to ASCII
+    do {
+
+        uint32_t rem;
+        x86_div64_32(n, base, &n, &rem);
+        buffer[pos ++] = up ? X_chars[rem] : x_chars_l[rem];
+
+    }  while ( n > 0 );
+
+    // Add sign, if applicable
+    if (sv && sign == -1)
+        buffer[pos ++] = '-';
+
+    // Print the buffer out.
+    // Note: the buffer was filled in reverse order
+
+    while ((pos --) >= 0 && buffer[pos])
+        putc(buffer[pos]);
+
+    return argp;
+
+}

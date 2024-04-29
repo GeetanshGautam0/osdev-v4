@@ -1,0 +1,13 @@
+#include "../include/c_string.h"
+
+unsigned _l = 0;
+unsigned
+    strlen
+    (
+        const char * str
+    )
+{
+    _l = 0;
+    while (*str) { ++ _l; ++ str; }
+    return _l;
+}

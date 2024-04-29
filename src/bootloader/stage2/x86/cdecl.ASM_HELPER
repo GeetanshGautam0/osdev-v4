@@ -1,0 +1,9 @@
+%macro new_call_frame 0
+    push bp
+    mov bp, sp
+%endmacro
+
+%macro restore_call_frame 0
+    mov sp, bp
+    pop bp
+%endmacro

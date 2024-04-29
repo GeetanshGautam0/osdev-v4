@@ -1,0 +1,38 @@
+#include "../include/c_stdio.h"
+#include "../include/x86.h"
+
+
+void putc ( char c )
+{
+    switch (c)
+    {
+        case '\t':
+            for (int i = 0; i < TAB_WIDTH; i++) x86_64_WriteCharTeletype(' ', 0);
+            return;
+        default:
+            x86_64_WriteCharTeletype(c, 0);
+    }
+}
+
+void puts ( const char* str )
+{
+
+    while (*str)
+    {
+        putc(*str);
+        ++str;
+    }
+
+}
+
+void puts_f ( const char __far * str )
+{
+
+    while (*str)
+    {
+        putc(*str);
+        ++str;
+    }
+
+}
+

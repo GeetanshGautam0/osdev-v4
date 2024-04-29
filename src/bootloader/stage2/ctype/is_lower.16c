@@ -1,0 +1,6 @@
+#include "../include/ctype.h"
+
+bool is_lower (char c)
+{
+    return c >= 'a' && c <= 'z';
+}

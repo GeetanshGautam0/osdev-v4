@@ -1,0 +1,128 @@
+; void _cdecl x86_disk_reset( uint8_t drive );
+;
+
+global _x86_disk_reset
+_x86_disk_reset:
+    new_call_frame
+
+    mov ah, 0
+    mov dl, [bp + 4]                            ; dl: Drive number
+    stc                                         ; Set carry flag
+    int 0x13
+
+    mov ax, 1
+    sbb ax, 0                                   ; 1 = true, 0 = false
+
+    restore_call_frame
+    ret
+
+
+; void _cdecl x86_disk_read(
+;         uint8_t drive,
+;         uint16_t c,
+;         uint16_t h,
+;         uint16_t s,
+;         uint8_t count,
+;         uint8_t __far * data_out
+; );
+;
+
+global _x86_disk_read
+_x86_disk_read:
+    new_call_frame
+
+     ; We modify the bx and es registers. Push their values to the stack before going ahead.
+    push bx
+    push es
+
+    ; setup args
+    mov dl, [bp + 4]    ; dl: Drive number
+    mov ch, [bp + 6]    ; ch: Cylinder number (lower 8 bits)
+    mov cl, [bp + 7]    ; cl: Cylinder to bits 6-7
+    shl cl, 6           ;       (b) shift left by 6 to get the right value in cl
+
+    mov al, [bp + 8]    ; cl: Sector to bits 0-5
+    and al, 3Fh
+    or cl, al
+
+    mov dh, [bp + 10]   ; dh: Head number
+    mov al, [bp + 12]   ; al: Number of sectors to read (count)
+
+    mov bx, [bp + 16]   ; es:bx - far pointer to data out
+    mov es, bx
+    mov bx, [bp + 14]
+
+    ; Interrupt 0x13: disk-related functions
+    mov ah, 0x02        ; Read spec
+    stc                 ; Set carry flag (used to check whether the operation was a success)
+    int 0x13            ; Call the interrupt
+
+    ; Set return value in ax.
+    mov ax, 1
+    sbb ax, 0           ; 1 on success, 0 on fail
+
+    ; Restore the original values of es and bx from the stack.
+    pop es
+    pop bx
+
+    restore_call_frame
+    ret
+
+; void _cdecl x86_disk_get_drive_params(
+;         uint8_t drive,
+;         uint8_t * drive_type_out,
+;         uint16_t * cylinders_out,
+;         uint16_t * sectors_out,
+;         uint16_t * heads_out
+; );
+;
+
+global _x86_disk_get_drive_params
+_x86_disk_get_drive_params:
+    new_call_frame
+
+    ; Save modified registers
+    push es
+    push bx
+    push si
+    push di
+
+    ; Call interrupt 0x13
+    mov dl, [bp + 4]    ; dl: Disk drive
+    mov ah, 0x08
+    mov di, 0           ; es:di - 0000:0000
+    mov es, di
+    stc
+    int 0x13
+
+    ; return
+    mov ax, 1
+    sbb ax, 0
+
+    ; out params
+    mov si, [bp + 6]    ; drive type from bl
+    mov [si], bl
+
+    mov bl, ch          ; cylinders - lower bits in ch
+    mov bh, cl          ; cylinders - upper bits in cl (6-7)
+    shr bh, 6
+    mov si, [bp + 8]
+    mov [si], bx
+
+    xor ch, ch          ; sectors - lower 5 bits in cl
+    and cl, 3Fh
+    mov si, [bp + 10]
+    mov [si], cx
+
+    mov cl, dh          ; heads - dh
+    mov si, [bp + 12]
+    mov [si], cx
+
+    ; Restore registers
+    pop di
+    pop si
+    pop bx
+    pop es
+
+    restore_call_frame
+    ret

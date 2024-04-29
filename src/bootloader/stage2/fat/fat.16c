@@ -1,0 +1,819 @@
+#include "../include/fat.h"
+#include "../include/c_stdio.h"
+#include "../include/memory.h"
+#include "../include/memdefs.h"
+#include "../include/c_string.h"
+#include "../include/utility.h"
+#include "../include/ctype.h"
+#include "../include/blpol.h"
+
+
+#define SC_NAME                         "[FAT Driver]"
+//                                       0xZZZZ0OOOOO
+//                                          Z: Function ID
+//                                          O: Error ID
+// __fat_init (F000)
+#define ER_BS_READ_FAILURE              "0xF000000000"              /* Failed to read the boot-sector */
+#define ER_FAT_LOAD_FAILURE_MEM         "0xF000000001"              /* Failed to load FAT: insufficient memory */
+#define ER_FAT_LOAD_FAILURE_GEN         "0xF000000002"              /* Failed to load FAT: other */
+#define ER_FAT_READ_ROOT_DIR            "0xF000000003"              /* Failed to read the root directory */
+// __fat_open (F001)
+#define ER_NOT_FOUND                    "0xF001000000"              /* Entry not found */
+#define ER_NOT_A_DIRECTORY              "0xF001000001"              /* Entry not a directory */
+// __fat_open_entry (F002)
+#define ER_NO_HANDLES                   "0xF002000000"              /* No more file handles available */
+#define ER_COULD_NOT_READ               "0xF002000001"              /* Could not read the sector */
+// __fat_read (F003)
+#define ER_READ_ERROR_1                 "0xF003000000"
+#define ER_READ_ERROR_2                 "0xF003000001"
+
+
+#pragma pack(push, 1) 
+typedef struct {
+
+    uint8_t         boot_jump_instruction [3];
+
+    /* FAT 12 Header */
+
+    uint8_t         oem_identifier [8];
+    uint16_t        bytes_per_sector;
+    uint8_t         sectors_per_cluster; 
+    uint16_t        reserved_sectors;
+    uint8_t         fat_count;
+    uint16_t        dir_entries_count;
+    uint16_t        total_sectors;
+    uint8_t         media_desc_type;
+    uint16_t        sectors_per_fat;
+    uint16_t        sectors_per_track;
+    uint16_t        heads;
+    uint32_t        hidden_sectors;
+    uint32_t        large_sector_count;
+
+    /* Extended Boot Record (EBR) */
+
+    uint8_t         drive_number;
+    uint8_t         _reserved;
+    uint8_t         signature;
+    uint32_t        volume_id;
+    uint8_t         volume_label [11];
+    uint8_t         system_id [8];
+
+} fat_boot_sector_t;
+#pragma pack(pop)
+
+
+typedef struct 
+{
+
+    uint8_t         buffer[FAT_SECTOR_SIZE];
+    fat_file_t      public;
+    bool            opened;
+    uint32_t        first_cluster;
+    uint32_t        current_cluster;
+    uint32_t        current_sector_in_cluster; 
+
+} fat_file_data_t;
+
+typedef struct
+{
+    union
+    {
+        fat_boot_sector_t   boot_sector;
+        uint8_t             boot_sector_bytes[FAT_SECTOR_SIZE];
+    } boot_sector;
+
+    fat_file_data_t         root_directory;
+    fat_file_data_t         opened_files[FAT_MAX_FILE_HANDLES];
+
+} fat_data_t;
+
+
+static fat_data_t __far *  g_data;                                  /* Global FAT data */
+static uint8_t __far *     g_fat = NULL;                            /* Global File Allocation Table (FAT) */
+static uint32_t            g_data_section_lba;                      /* Logical Block Address (LBA) of the g_data section */
+
+
+/*
+* ---------------------------------------------------------------------------------------------------------------------
+*                                               PRIVATE FAT FUNCTIONS
+* ---------------------------------------------------------------------------------------------------------------------
+*/
+
+
+/* Prototype functions needed */
+
+/*
+__fat_read_entry            (PROTOTYPE DECL)
+
+Arguments:
+    dptr    (disk_t *)
+    fptr    (fat_file_t far *)
+    deptr   (fat_directory_entry_t *)
+
+Returns:
+    boolean
+
+*/
+bool __fat_read_entry (disk_t *, fat_file_t __far *, fat_directory_entry_t *);
+
+/*
+__make_fat_name 
+    
+Arguments:
+    1.  file_name   (const char *):                                 A string containing the original name
+    2.  out_buffer  (char[12]):                                     A 12-character buffer to which the FAT name will be written
+
+Returns:
+    char *  (out_buffer copy)
+
+About:
+    Takes a file name and returns a FAT12-compliant file name string. 
+
+    The FAT12 format specifies that:
+    1. All characters in the file name must be uppercase
+    2. The file name must be exactly 11 characters long (excluding the null-terminator)
+    3. The first 8 characters of the name must be the file name
+    4. The last 3 charactesr of the name must be the extension
+    5. Should the file name and/or extension not be provided, or if the extension and/or filename are not 3 or 8 characters long, respectively, then
+       those sections of the name must be padded with whitespace. 
+
+    In summary,
+        FFFFFFFFeee0
+
+        F: File name (truncated/padded to 8 characters; uppercase)
+        e: Extension (truncated/padded to 3 characters; uppercase)
+        0: Null Terminator
+
+*/
+
+#define FAT_NAME_LEN                                                11
+
+char * 
+    __make_fat_name 
+( 
+    const char * file_name,
+    char * out_buffer
+)
+{
+    memset(out_buffer, ' ', FAT_NAME_LEN);
+    out_buffer[FAT_NAME_LEN] = 0;                                             /* Add the null terminator */
+
+    const char * ext = strchr(file_name, '.');                      /* Get the index of the '.' delimeter */
+    if (ext == NULL) ext = file_name + FAT_NAME_LEN;                          /* Handle instances where there is no extension -> point to null terminator*/
+
+    /*
+    Conditions for the following for-loop:
+        1. The index must be less than 8 (the FAT file name spec specifies that the first 8 characters must be the file name, and the last 3 must be the extension)
+        2. Make sure that we're not at a null-terminator
+        3. That the character falls prior to the extension delim (@ ext).
+    */
+
+    for (int i = 0; i < 8 && file_name[i] && file_name + i < ext; i++)
+        out_buffer[i] = to_upper(file_name[i]);
+
+    /*
+    Conditions for the following for-loop:
+        1. The index must be less than 3 (see the format spec in the prior DOC)
+        2. Break the loop if the null-terminator is reached.
+
+    NOTE: ext is set to either:
+        1. The first occurance of '.'; or, 
+        2. At the end of the file name (at the null terminator)
+    */
+
+    for (int i = 0; i < 3 && ext[i + 1]; i++)
+        out_buffer[i + 8] = to_upper(ext[i + 1]);
+    
+    return out_buffer;
+}
+
+
+/*
+__fat_read_boot_sectors 
+
+Arguments:
+    cluster (uint32_t)                                              Cluster number
+
+Returns:
+    Logical Block Address (uint32_t)                                LBA that corresponds to the cluster number
+
+About:
+    Converts the cluster number to an LBA
+
+*/
+
+
+uint32_t 
+    __fat_cluster_to_lba
+( 
+    uint32_t cluster 
+)
+{
+    return g_data_section_lba + (cluster - 2) * g_data->boot_sector.boot_sector.sectors_per_cluster;
+}
+
+
+/*
+__fat_read_boot_sector 
+
+Arguments:
+    dptr (disk_t *)                                                 Pointer to the disk
+
+Returns:
+    Success? (boolean)
+
+About:
+    Reads the boot sector into the BS bytes in the g_data struct (g_data->boot_sector.boot_sector_bytes)
+
+NOTE: The BS can be accessed as a fat_boot_sector_t struct without additional computation. 
+
+*/
+
+bool 
+    __fat_read_boot_sector
+(
+    disk_t * dptr
+)
+{
+    return disk_read_sectors(
+        dptr,                                                       /* Pointer to disk */
+        0,                                                          /* Start at the first sector */
+        1,                                                          /* Read one sector (the boot sector) */
+        g_data->boot_sector.boot_sector_bytes                       /* Load into g_data->boot_sector */
+    );
+}
+
+
+/*
+__fat_read_fat 
+
+Arguments:
+    dptr (disk_t *)                                                 Pointer to the disk
+
+Returns:
+    Success? (boolean)
+
+About:
+    Loads the file allocation table into g_fat. 
+
+*/
+
+bool 
+    __fat_read_fat 
+(
+    disk_t * dptr
+)
+{
+    return disk_read_sectors(
+        dptr,                                                       /* Pointer to disk */
+        g_data->boot_sector.boot_sector.reserved_sectors,           /* FAT starts after the reserved sectors; the start sector is at the end of the reserved sectors = number of sectors (index starting at 0) */
+        g_data->boot_sector.boot_sector.sectors_per_fat,            /* Size of the FAT in sectors */
+        g_fat                                                       /* Load the FAT into g_fat */
+    );
+}
+
+
+/*
+__fat_init (0xF000)
+
+Arguments:
+    dptr (disk_t *)                                                 Pointer to the disk
+
+Returns:
+    Success? (boolean)
+
+About:
+    1. Sets up g_data
+    2. Reads the boot sector
+    3. Sets up g_fat
+    4. Loads the FAT and Root Directory
+    5. Resets the status of all file handles to be not opened. 
+
+Errors:
+    ER_BS_READ_FAILURE          0xF000000000
+    ER_FAT_LOAD_FAILURE_MEM     0xF000000001
+    ER_FAT_LOAD_FAILURE_GEN     0xF000000002
+    ER_FAT_READ_ROOT_DIR        0xF000000003
+
+*/
+
+bool 
+    __fat_init 
+( 
+    disk_t * dptr 
+)
+{
+
+    g_data = (fat_data_t __far *) MEMORY_FAT_ADDR;                  /* Configure g_data to be loaded in the correct area of memory */
+
+    if (!__fat_read_boot_sector(dptr))                              /* Read the boot sector; if this fails then the disk cannot be initialized. */
+    {       
+        printf16("[E] %s Error %s\r\n", SC_NAME, ER_BS_READ_FAILURE);
+        return false;
+    }
+
+    /* Recall that the file allocation table is created at the top of the boot sector in src/stage1/bootloader.asm */
+    g_fat = (uint8_t __far *) g_data + sizeof(fat_data_t);          /* Set the File Allocation Table (FAT) to be loaded at the right address in memory. */
+    /* Compute the address of one FAT in bytes. */
+    uint32_t fat_size = g_data->boot_sector.boot_sector.bytes_per_sector * g_data->boot_sector.boot_sector.sectors_per_fat;
+
+    if ((sizeof(fat_data_t) + fat_size) >= MEMORY_FAT_SIZE)         /* Make sure that all of the above data can be fit into the memory "allocated" for it. */
+    {
+        printf16("[E] %s Error %s: N(%u) A(%u)\r\n", SC_NAME, ER_FAT_LOAD_FAILURE_MEM, sizeof(fat_data_t) + fat_size, MEMORY_FAT_SIZE);
+        return false;
+    }
+
+    if (!__fat_read_fat(dptr))                                      /* Load the FAT from the disk */
+    {
+        printf16("[E] %s Error %s\r\n", SC_NAME, ER_FAT_LOAD_FAILURE_GEN);
+        return false;
+    }
+
+    /* Read the root directory. */
+    /* Boot Sector:     [Reserved Sectors][FAT...][Root Directory] */
+    uint32_t root_dir_lba = 
+        g_data->boot_sector.boot_sector.reserved_sectors +
+        g_data->boot_sector.boot_sector.sectors_per_fat * g_data->boot_sector.boot_sector.fat_count;
+
+    uint32_t root_dir_size = sizeof(fat_directory_entry_t) * g_data->boot_sector.boot_sector.dir_entries_count;
+
+    /* Public parameters */
+    g_data->root_directory.public.handle = FAT_ROOT_DIR_HANDLE;     /* Set the handle to be the default root directory handle (-1) */
+    g_data->root_directory.public.is_dir = true;
+    g_data->root_directory.public.pos    = 0;
+    g_data->root_directory.public.size   = root_dir_size;
+
+    /* Other parameters; set it up such that the we start reading at the first sector of the root directory. */
+    g_data->root_directory.opened           = true;
+    g_data->root_directory.first_cluster    = root_dir_lba;
+    g_data->root_directory.current_cluster  = root_dir_lba;
+    g_data->root_directory.current_sector_in_cluster = 0;
+
+    /* Try to read the root directory into its buffer. */
+    if (!disk_read_sectors(dptr, root_dir_lba, 1, g_data->root_directory.buffer))
+    {
+        printf16("[E] %s Error %s\r\n", SC_NAME, ER_FAT_READ_ROOT_DIR);
+        return false;
+    }
+
+    /* Calculate the data section */
+
+    uint32_t root_dir_sectors = (root_dir_size + g_data->boot_sector.boot_sector.bytes_per_sector - 1) /
+                                 g_data->boot_sector.boot_sector.bytes_per_sector;                          /* Effectively rounds up the number of sectors for the root dir */
+    g_data_section_lba = root_dir_lba + root_dir_sectors;           /* Set the start of g_data to the end of the root directory */
+
+    /* Reset opened files */
+    for (uint32_t i = 0; i < FAT_MAX_FILE_HANDLES; i++)
+        g_data->opened_files[i].opened = false;
+
+    return true;
+
+}   
+
+
+/*
+__fat_close
+
+Arguments:
+    fptr (fat_file_t far *)                                         Pointer to the file to be closed
+
+Returns:
+    None (void fn)
+
+About:
+    Closes the FAT file handle
+
+*/
+
+void 
+    __fat_close
+( 
+    fat_file_t __far * fptr
+)
+{
+    if (fptr->handle == FAT_ROOT_DIR_HANDLE)
+    {
+        fptr->pos = 0;
+        g_data->root_directory.current_cluster = g_data->root_directory.first_cluster;
+    }
+    else
+        g_data->opened_files[fptr->handle].opened = false;
+}
+
+
+/*
+__fat_find_file
+
+Arguments:  
+    dptr            (disk_t *)                                      Pointer to the disk containing the file
+    fptr            (fat_file_t far *)                              Pointer to the dir of fn
+    fn              (const char *)                                  The file name
+    eout_ptr        (fat_directory_entry_t *)                       Pointer to the entry out.
+
+Returns:
+    fn found? (bool)
+
+About:
+    Check if the file fn exists. 
+
+*/
+
+bool 
+    __fat_find_file 
+(
+    disk_t * dptr,
+    fat_file_t __far * fptr,
+    const char * fn,
+    fat_directory_entry_t * eout_ptr
+)
+{
+    char fat_name[12];
+    __make_fat_name(fn, fat_name);
+
+    fat_directory_entry_t entry;                                    /* Create a varaible to temporarily store the loaded data */
+
+    while (__fat_read_entry(dptr, fptr, &entry))                    /* Incrementally load the entries in fptr into entry */
+    {
+        if (memcmp(fat_name, entry.name, 11) == 0)                  /* If the two strings are equal to 11 characters (FAT name length) */
+        {
+            *eout_ptr = entry; 
+            return true;
+        }
+    }
+
+    return false;                                                   /* fn not found */
+}
+
+
+/*
+__fat_next_cluster
+
+Arguments:  
+    Current cluster (uint32_t)
+
+Returns:
+    Next cluster (uint32_t)
+
+About:
+    Returns the address of the next cluster. 
+
+*/
+
+uint32_t 
+    __fat_next_cluster
+(
+    uint32_t current_cluster
+)
+{
+    uint32_t fat_index = current_cluster * 3 / 2;
+    if (current_cluster % 2 == 0)
+        return (*(uint16_t __far *)(g_fat + fat_index)) & 0x0FFF;
+    
+    return (*(uint16_t __far *)(g_fat + fat_index)) >> 4;  
+}
+
+
+/*
+__fat_open_entry (0xF002)
+
+Arguments:
+    dptr    (disk_t *)
+    eptr    (fat_directory_entry_t *)
+
+Returns:
+    Opened entry (fat_file_t __far *)
+
+*/
+
+fat_file_t __far *
+    __fat_open_entry
+(
+    disk_t * dptr,
+    fat_directory_entry_t * eptr
+)
+{
+
+    /* Itterrate until we find an avaialble handle */
+    int handle = -1;
+    for ( int i = 0; i < FAT_MAX_FILE_HANDLES && handle < 0; i++ )
+    {
+        if (!g_data->opened_files[i].opened)
+            handle = i;
+    }
+
+    if (handle < 0)
+    {
+        printf16("[E] %s Error %s\r\n", SC_NAME, ER_NO_HANDLES);
+        return NULL;
+    }
+
+    /* Setup the file data struct */
+    fat_file_data_t __far * fd = &g_data->opened_files[handle];
+    
+    fd->public.handle = handle;
+    fd->public.is_dir = (eptr->attributes & FAT_ATTRIBUTE_DIRECTORY) != 0;
+    fd->public.pos = 0;
+    fd->public.size = eptr->size;
+
+    fd->first_cluster = eptr->first_cluster_low + ((uint32_t)eptr->first_cluster_high << 16);
+    fd->current_cluster = fd->first_cluster;
+    fd->current_sector_in_cluster = 0;
+
+    /* Load and check for the data */
+    if (!disk_read_sectors(
+        dptr,                                                       /* Pointer to disk */
+        __fat_cluster_to_lba(fd->current_cluster),                  /* Start reading at the current cluster */
+        1,                                                          /* Read 1 sector */
+        fd->buffer                                                  /* Read into the file descriptor's buffer */
+    ))
+    {
+        printf16("[E] %s Error %s", SC_NAME, ER_COULD_NOT_READ);
+        return NULL;
+    }
+
+    fd->opened = true;
+    return &fd->public;
+
+}
+
+
+/*
+__fat_open (0xF001)
+
+Arguments:
+    dptr    (disk_t *)                                              Pointer to disk
+    fp      (const char *)                                          File path
+
+Returns:
+    Opened file (fat_file_t far *)
+
+About:
+    Finds and opens the file at the path fp.
+
+*/
+
+char name[FAT_MAX_PATH_SIZE];
+
+fat_file_t __far * 
+    __fat_open 
+(
+    disk_t * dptr,
+    const char * fp    
+)
+{
+    // fp[0] == '/' ? (void) ++fp : (void) fp;                         /* If there exists a leading /, ignore it by incrementing the ptr */
+    /* The new version of the above line (see below) deals with multiple leading '/' characters */
+    while (fp[0] == '/') (void) ++fp; 
+
+    fat_file_t __far * current = &g_data->root_directory.public;    /* Start at the root directory */
+    bool is_last;
+    fat_directory_entry_t entry;
+
+    while (*fp)                                                     /* Iterate until the null terminator */
+    {
+        memset(name, 0, strlen(name));
+
+        is_last = false;
+        const char * delim = strchr(fp, '/');                       /* Create a ptr to the first instance of the '/' character (path delimeter) */
+        const char * fp0 = fp;
+
+        if (delim != NULL)
+        {
+            memcpy(name, fp, delim - fp);                           /* The name of the current entry is given by copying fp upto the delim (size = delim - fp) */
+            name[delim - fp + 1] = 0;                               /* Add a null terminator at the end of the entry name */
+            fp = delim + 1;                                         /* Move the ptr to after the '/' char */             
+        }
+        else 
+        {
+            unsigned len = strlen(fp);                              /* Get the length of the remaining path */                        
+            memcpy(name, fp, len);                                  /* Copy the rest of the path to name */
+            name[len + 1] = 0;
+            fp += len;
+            is_last = true;
+        }
+
+        // Find directory entry in the current directory
+        if (__fat_find_file(dptr, current, name, &entry))
+        {
+            /* The entry with name `name` was found. */
+
+            /* Close the current entry */
+            fat_close(current);
+
+            /* Check if this is not a directory */
+            if (!is_last && (entry.attributes & FAT_ATTRIBUTE_DIRECTORY) == 0)
+            {
+                printf16("[E] %s Error %s i(%s)\r\n", SC_NAME, ER_NOT_A_DIRECTORY, name);
+                return NULL;
+            }
+
+            /* Open the new directory/file; load into entry */
+            current = __fat_open_entry(dptr, &entry);
+
+        }
+        else
+        {
+            /* The entry was not found. */
+            fat_close(current);
+
+            printf16("[E] %s Error %s i(%s)\r\n", SC_NAME, ER_NOT_FOUND, name);
+            return NULL;
+
+        }
+
+    }
+
+    return current; 
+
+}
+
+
+/*
+__fat_read (0xF003)
+
+Arguments:
+    dptr    (disk_t *)                                              Disk pointer
+    fptr    (fat_file_t fat *)                                      File pointer 
+    bcnt    (uint32_t)                                              Byte count
+    dout    (void *)                                                Pointer to data out
+
+Returns:
+    Sizeof (uint32_t)
+
+About:
+    Reads a file at the location proscribed by dout and returns the "size" of the data read.
+
+*/
+
+uint32_t 
+    __fat_read
+(
+    disk_t * dptr,
+    fat_file_t __far * fptr,
+    uint32_t bcnt,
+    void * dout
+)
+{
+    /* Get the file data */
+    fat_file_data_t __far * fd = (fptr->handle == FAT_ROOT_DIR_HANDLE)
+        ? &g_data->root_directory
+        : &g_data->opened_files[fptr->handle];
+    uint8_t * u8_data_out = (uint8_t *) dout; 
+
+    /* Don't read past the end of the file */
+    if (!fd->public.is_dir)
+        bcnt = min(bcnt, fd->public.size - fd->public.pos);
+
+    while (bcnt > 0)
+    {
+        uint32_t left_in_buffer = FAT_SECTOR_SIZE - (fd->public.pos % FAT_SECTOR_SIZE);     /* Number of bytes left to be read in this itteration. The values may range from FAT_SECTOR_SIZE to 0 */
+        uint32_t take = min(bcnt, left_in_buffer);                                          /* The number of bytes to be read in this itteration */
+
+        memcpy(u8_data_out, fd->buffer + fd->public.pos % FAT_SECTOR_SIZE, take);           /* Read `take` bytes into u8_data_out from the calculated pos */
+                                                                                            /*          position: base of buffer + offset */
+
+        /* Increment/decrement appropriate pointers and indices */
+        u8_data_out += take;
+        fd->public.pos += take;
+        bcnt -= take;
+
+        if (left_in_buffer == take)
+        {
+            if (fd->public.handle == FAT_ROOT_DIR_HANDLE)
+            {
+                ++fd->current_cluster;
+                if (!disk_read_sectors(dptr, fd->current_cluster, 1, fd->buffer))
+                {
+                    printf16("[E] %s Error %s\r\n", SC_NAME, ER_READ_ERROR_1);
+                    return (uint32_t) 0;
+                }
+            }
+            else
+            {
+                if (++fd->current_sector_in_cluster >= g_data->boot_sector.boot_sector.sectors_per_cluster)
+                {
+                    fd->current_sector_in_cluster = 0;
+                    fd->current_cluster = __fat_next_cluster(fd->current_cluster);
+                }
+
+                if (fd->current_cluster >= 0xFF8)
+                {
+                    /* This marks EOF (End of File) */
+                    fd->public.size = fd->public.pos;
+                    break;
+                }
+
+                /* Read the next sector */
+                if (!disk_read_sectors(
+                    dptr,                                           /* Disk pointer */                                           
+                    __fat_cluster_to_lba(fd->current_cluster)       /* Start = offset (current cluster) + current sector in cluster */
+                              + fd->current_sector_in_cluster,
+                    1,                                              /* Read 1 sector */
+                    fd->buffer                                      /* Read to file data buffer */
+                ))
+                {
+                    printf16("[E] %s Error %s\r\n", SC_NAME, ER_READ_ERROR_2);
+                    return (uint32_t) 0;
+                }
+            }
+        }
+    }
+
+    return u8_data_out - (uint8_t *)dout;
+
+}
+
+
+/*
+__fat_read_entry
+
+Arguments:
+    dptr    (disk_t *)
+    fptr    (fat_file_t far *)
+    deptr   (fat_directory_entry_t *)
+
+Returns:
+    boolean
+
+*/
+
+bool
+    __fat_read_entry
+(
+    disk_t * dptr,
+    fat_file_t __far * fptr,
+    fat_directory_entry_t * deptr
+)
+{
+    return __fat_read(
+        dptr,                                                       /* Pointer to disk */
+        fptr,                                                       /* Pointer to file */
+        sizeof(fat_directory_entry_t),                              /* To read the directory entry (at the beginning of the file) by reading the same number of bytes as the size of the struct */
+        deptr                                                       /* Read into deptr */
+    ) == sizeof(fat_directory_entry_t);                             /* Return: check to see if the number of bytes read equals the size of the struct (i.e., if the read was successful.) */
+}
+
+/*
+* ---------------------------------------------------------------------------------------------------------------------
+*                                               PUBLIC FAT FUNCTIONS
+* ---------------------------------------------------------------------------------------------------------------------
+*/
+
+
+bool    
+    fat_init 
+(
+    disk_t * disk_ptr
+)
+{
+    return __fat_init(disk_ptr);
+}
+
+
+ fat_file_t __far * 
+    fat_open 
+(
+    disk_t * disk_ptr,
+    const char * fp
+)
+{
+    // if (!__fat_init(disk_ptr)) return NULL;
+    return __fat_open(disk_ptr, fp);
+}
+
+
+uint32_t 
+    fat_read
+(
+    disk_t * disk_ptr,
+    fat_file_t __far * file_ptr,
+    uint32_t byte_count,
+    void * data_out
+)
+{
+    // if (!__fat_init(disk_ptr)) return (uint32_t)NULL; 
+    return __fat_read(disk_ptr, file_ptr, byte_count, data_out);
+}
+
+
+bool 
+    fat_read_entry
+(
+    disk_t * disk_ptr, 
+    fat_file_t __far * file_ptr,
+    fat_directory_entry_t * entry_ptr
+)
+{
+    // if (!__fat_init(disk_ptr)) return (uint32_t)NULL; 
+    return __fat_read_entry(disk_ptr, file_ptr, entry_ptr);
+}
+
+
+void 
+    fat_close
+(
+    fat_file_t __far * file_ptr
+)
+{
+    __fat_close(file_ptr);
+}
